@@ -1,3 +1,4 @@
+rdkit
 python>=3.6
 openbabel
 numpy
