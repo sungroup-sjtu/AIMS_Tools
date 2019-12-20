@@ -8,6 +8,7 @@ from ...analyzer import is_converged, average_of_blocks
 from ..trajectory import Trajectory
 from ...utils import get_last_line
 
+
 class NptPPM(GmxSimulation):
     def __init__(self, amplitudes_steps=None, **kwargs):
         super().__init__(**kwargs)

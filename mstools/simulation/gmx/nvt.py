@@ -4,6 +4,7 @@ from ...wrapper.gmx import *
 from ...analyzer.acf import get_std_out
 from ...panedr import edr_to_df
 
+
 class Nvt(GmxSimulation):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -55,7 +56,8 @@ class Nvt(GmxSimulation):
             commands.append(self.gmx.trjconv('nvt.tpr', 'nvt.trr', 'traj.gro', end=500, get_cmd=True))
             commands.append(os.path.join(mstools_dir, 'mstools', 'cpp', 'diff-gk') + ' traj.gro')
         # viscosity
-        commands.append(self.gmx.energy('nvt.edr', properties=['Pres-XY', 'Pres-XZ', 'Pres-YZ'], out='pressure.xvg', get_cmd=True))
+        commands.append(
+            self.gmx.energy('nvt.edr', properties=['Pres-XY', 'Pres-XZ', 'Pres-YZ'], out='pressure.xvg', get_cmd=True))
         weight = 0.00
         temperature = self.gmx.get_temperature_from_mdp('grompp-nvt.mdp')
         volume = self.gmx.get_volume_from_gro('npt.gro')
@@ -65,7 +67,6 @@ class Nvt(GmxSimulation):
 
         self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure)
         return commands
-
 
     # analyze diffusion constant
     def analyze_diff(self, charge_list, n_mol_list, diff_gk=False):
@@ -88,8 +89,8 @@ class Nvt(GmxSimulation):
             for i, charge in enumerate(charge_list):
                 mol_name = 'MO%i' % (i)
                 diff, stderr = diff_e_dict.get(mol_name)
-                econ += diff * charge_list[i]**2 * n_mol_list[i]
-                econ_stderr += stderr * charge_list[i]**2 * n_mol_list[i]
+                econ += diff * charge_list[i] ** 2 * n_mol_list[i]
+                econ_stderr += stderr * charge_list[i] ** 2 * n_mol_list[i]
             econ *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
             econ_stderr *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
             info_dict.update({'Nernst-Einstein electrical conductivity': get_std_out([econ, econ_stderr])})
@@ -106,7 +107,8 @@ class Nvt(GmxSimulation):
             bounds = ([0, 0, 0], [100, 100, 100])
             factor = math.floor(math.log10(diff_list.mean()))
             coef, score = ExpConstfit(get_block_average(t_list, n_block=n_block)[2:],
-                                      get_block_average(diff_list * 10 ** (-factor), n_block=n_block)[2:], bounds=bounds)
+                                      get_block_average(diff_list * 10 ** (-factor), n_block=n_block)[2:],
+                                      bounds=bounds)
             coef[0] *= 10 ** (factor)
             coef[1] *= 10 ** (factor)
             diff_gk_dict = {'System': get_std_out([coef[1], ExpConstval(t_list[-1], coef)])}
@@ -115,11 +117,12 @@ class Nvt(GmxSimulation):
                 t_list, diff_list = get_t_property_list(property='diffusion constant', name=mol_name)
                 factor = math.floor(math.log10(diff_list.mean()))
                 coef, score = ExpConstfit(get_block_average(t_list, n_block=n_block)[2:],
-                                          get_block_average(diff_list * 10 ** (-factor), n_block=n_block)[2:], bounds=bounds)
+                                          get_block_average(diff_list * 10 ** (-factor), n_block=n_block)[2:],
+                                          bounds=bounds)
                 coef[0] *= 10 ** (factor)
                 coef[1] *= 10 ** (factor)
                 diff_gk_dict.update({mol_name: get_std_out([coef[1], ExpConstval(t_list[-1], coef)])})
-            info_dict.update({'diffusion constant-gk': diff_gk_dict}) # {name: [diff_t_inf, diff_t_end]}
+            info_dict.update({'diffusion constant-gk': diff_gk_dict})  # {name: [diff_t_inf, diff_t_end]}
 
             # estimate electrical conductivity using Nernst-Einstein relation
             if charge_list != None and set(charge_list) != {0}:
@@ -143,18 +146,19 @@ class Nvt(GmxSimulation):
         temperature = df.Temperature.mean()
         volume = self.gmx.get_volume_from_gro('nvt.gro')
         commands = []
-        out, err = self.gmx.current('nvt.trr', 'nvt.tpr', caf=True)
-        open('current.out', 'w').write(out)
-        open('current.err', 'w').write(err)
-        commands.append(os.path.join(mstools_dir, 'mstools', 'cpp', 'current-gk') + ' current.xvg' + ' %f' % (
-            volume) + ' %f' % (
-                            temperature) + ' %.2f' % (weight))
+        if os.path.exists('nvt.trr'):
+            out, err = self.gmx.current('nvt.trr', 'nvt.tpr', caf=True)
+            open('current.out', 'w').write(out)
+            open('current.err', 'w').write(err)
+        if os.path.exists('current.xvg'):
+            commands.append(os.path.join(mstools_dir, 'mstools', 'cpp', 'current-gk') + ' current.xvg' + ' %f' % (
+                volume) + ' %f' % temperature + ' %.2f' % weight)
         for cmd in commands:
             sp = Popen(cmd.split(), stdout=PIPE, stdin=PIPE, stderr=PIPE)
             sp.communicate()
 
     # analyze viscosity
-    def analyze_vis(self,  mstools_dir, weight=0.00):
+    def analyze_vis(self, mstools_dir, weight=0.00):
         df = edr_to_df('nvt.edr')
         temperature = df.Temperature.mean()
         volume = self.gmx.get_volume_from_gro('nvt.gro')
@@ -167,7 +171,8 @@ class Nvt(GmxSimulation):
             sp = Popen(cmd.split(), stdout=PIPE, stdin=PIPE, stderr=PIPE)
             sp.communicate()
 
-    def analyze_acf(self, mstools_dir, charge_list, n_mol_list, current=False, delete_trr=True, diff_gk=False, weight=0.00):
+    def analyze_acf(self, mstools_dir, charge_list, n_mol_list, current=False, delete_trr=True, diff_gk=False,
+                    weight=0.00):
         info_dict = self.analyze_diff(charge_list, n_mol_list, diff_gk=diff_gk)
         if current:
             # self.analyze_vis(mstools_dir=mstools_dir, weight=weight) this function is implemented in prepare
@@ -189,6 +194,7 @@ class Nvt(GmxSimulation):
     def post_process(T_list, P_list, result_list, **kwargs) -> (dict, str):
         def round5(x):
             return float('%.5e' % x)
+
         post_result = {}
         t_set = set(T_list)
         p_set = set(P_list)
@@ -203,11 +209,15 @@ class Nvt(GmxSimulation):
             t_p_diff_list = []
             for i, result in enumerate(result_list):
                 if result.get('viscosity') is not None:
-                    t_p_viscosity_score_list.append([T_list[i], P_list[i], result.get('viscosity'), result.get('vis_score')]) # [t, p, value, score]
+                    t_p_viscosity_score_list.append([T_list[i], P_list[i], result.get('viscosity'),
+                                                     result.get('vis_score')])  # [t, p, value, score]
                 if result.get('electrical conductivity') is not None:
-                    t_p_econ_score_list.append([T_list[i], P_list[i], result.get('electrical conductivity'), result.get('econ_score')]) # [t, p, value, score]
-                t_p_NEecon_stderr_list.append([T_list[i], P_list[i], result.get('Nernst-Einstein electrical conductivity')]) # [t, p, [value, stderr]]
-                t_p_diff_list.append([T_list[i], P_list[i], result.get('diffusion constant')]) # [t, p, diff_dict{name: [diff, stderr]}]
+                    t_p_econ_score_list.append([T_list[i], P_list[i], result.get('electrical conductivity'),
+                                                result.get('econ_score')])  # [t, p, value, score]
+                t_p_NEecon_stderr_list.append([T_list[i], P_list[i], result.get(
+                    'Nernst-Einstein electrical conductivity')])  # [t, p, [value, stderr]]
+                t_p_diff_list.append(
+                    [T_list[i], P_list[i], result.get('diffusion constant')])  # [t, p, diff_dict{name: [diff, stderr]}]
 
             t_p_viscosity_score_list.sort(key=lambda x: (x[1], x[0]))  # sorted by P, then T
             t_p_econ_score_list.sort(key=lambda x: (x[1], x[0]))  # sorted by P, then T
@@ -259,24 +269,26 @@ class Nvt(GmxSimulation):
                                                 round5(_t_diff_coeff_score[name][1])]
             post_result = {
                 'p': P_list[0],
-                'viscosity': t_p_viscosity_score_list, # [t, p, viscosity, score]
-                'electrical conductivity': t_p_econ_score_list, # [t, p, econ, score]
-                'diffusion constant': t_p_diff_list, # [t, p, diff_dict{name: [diff, stderr]}]
-                'Nernst-Einstein electrical conductivity': t_p_NEecon_stderr_list, # [t, p, [value, stderr]]
-                'vis-t-VTF': t_vis_VTF, # {'pressure': [[coeff], score, t_min, t_max]}
+                'viscosity': t_p_viscosity_score_list,  # [t, p, viscosity, score]
+                'electrical conductivity': t_p_econ_score_list,  # [t, p, econ, score]
+                'diffusion constant': t_p_diff_list,  # [t, p, diff_dict{name: [diff, stderr]}]
+                'Nernst-Einstein electrical conductivity': t_p_NEecon_stderr_list,  # [t, p, [value, stderr]]
+                'vis-t-VTF': t_vis_VTF,  # {'pressure': [[coeff], score, t_min, t_max]}
                 'econ-t-poly3': t_econ_poly3,
                 'NEecon-t-poly3': t_NEecon_poly3,
-                'diff-t-poly3': t_diff_poly3, # {'pressure': [{'System': [[coeff], score]}, t_min, t_max]}
+                'diff-t-poly3': t_diff_poly3,  # {'pressure': [{'System': [[coeff], score]}, t_min, t_max]}
             }
             if result_list[0].get('diffusion constant-gk and score') is not None:
                 t_p_diffgk_list = []
                 for i, result in enumerate(result_list):
-                    t_p_diffgk_list.append([T_list[i], P_list[i], result.get('diffusion constant-gk and score')])
-                post_result['diffusion constant gk'] = t_p_diffgk_list # [t, p, diff_dict{name: [diff, score]}]
+                    if result.get('diffusion constant-gk and score').get('System')[0] is not None:
+                        t_p_diffgk_list.append([T_list[i], P_list[i], result.get('diffusion constant-gk and score')])
+                post_result['diffusion constant gk'] = t_p_diffgk_list  # [t, p, diff_dict{name: [diff, score]}]
             if result_list[0].get('diffusion constant-gk and stderr') is not None:
                 t_p_diffgk_list = []
                 for i, result in enumerate(result_list):
-                    t_p_diffgk_list.append([T_list[i], P_list[i], result.get('diffusion constant-gk and score')])
+                    if result.get('diffusion constant-gk and stderr').get('System')[0] is not None:
+                        t_p_diffgk_list.append([T_list[i], P_list[i], result.get('diffusion constant-gk and stderr')])
                 post_result['diffusion constant gk'] = t_p_diffgk_list  # [t, p, diff_dict{name: [diff, score]}]
 
                 '''

@@ -297,8 +297,8 @@ class Npt(GmxSimulation):
             'pV'                : pv_and_stderr,  # kJ/mol
             'liquid enthalpy'   : le_and_stderr, # kJ/mol
             'einter'            : list(block_average(einter_series.loc[when:])),  # kJ/mol
-            'expansion'         : [expansion, expan_stderr],
-            'compress'          : [compressi, compr_stderr],
+            'expansion'         : [expansion, expan_stderr], # 1/K
+            'compress'          : [compressi, compr_stderr], # m^3/J
         }
         info_dict.update(ad_dict)
         return info_dict
@@ -426,7 +426,7 @@ class Npt(GmxSimulation):
             return float('%.5e' % x)
         t_set = set(T_list)
         p_set = set(P_list)
-        mols_number = sum(n_mol_list)
+        mols_number = min(n_mol_list)
 
         if len(t_set) < 5:
             return None, 'T points less than 5'
@@ -485,10 +485,10 @@ class Npt(GmxSimulation):
             from mstools.analyzer.fitting import polyfit_2d, polyfit, polyval_derivative
             ### einter and liquid enthalpy divided by number of molecules
             dens_stderr_list = [list(map(round5, result['density'])) for result in result_list]
-            eint_stderr_list = [list(map(lambda x: round5(x / n_mol_list[0]), result['einter'])) for result in
+            eint_stderr_list = [list(map(lambda x: round5(x / mols_number), result['einter'])) for result in
                                 result_list]
             # hl_stderr_list = [list(map(lambda x: round5(x / n_mol_list[0]), result['liquid enthalpy'])) for result in result_list]
-            hl_stderr_list = [list(map(lambda x: round5(x / n_mol_list[0]),
+            hl_stderr_list = [list(map(lambda x: round5(x / mols_number),
                                        [result['einter'][0] + result['kinetic energy'][0] + result['pV'][0],
                                         result['einter'][1] + result['kinetic energy'][1] + result['pV'][1]])) for
                               result in
@@ -685,7 +685,7 @@ class Npt(GmxSimulation):
                     coef, score = polyfit(*zip(*_p_comp_list), 3)
                     _p_list = list(zip(*_p_comp_list))[0]
                     if P > min(_p_list) - 10 and P < max(_p_list) + 10:
-                        result['compressibility'] = polyval(P, coef)
+                        result['compress'] = polyval(P, coef)
             if post_result.get('hl-t-poly3') is not None and len(post_result['hl-t-poly3']) >= 5:
                 _p_hl_list = []
                 for _p in post_result['hl-t-poly3']:
