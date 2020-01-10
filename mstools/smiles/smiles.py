@@ -19,21 +19,30 @@ def get_para_298(T=298, eps=None, sigma=None, lamb=None):
     sigma /= ((2 * f) ** (-1 / 6))
     return sigma / 2 ** (1 / 6), eps * 16 / 27
 
+
 # get basic information of molecules
 def get_canonical_smiles(smiles):
     py_mol = pybel.readstring("smi", smiles)
     return py_mol.write('can', opt={'n': None}).strip()
+
+
 def get_rdkit_smiles(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
     return Chem.MolToSmiles(rdk_mol)
+
+
 def get_atom_numbers(smiles):
     mol = pybel.readstring("smi", smiles)
     mol.addh()
     return len(mol.atoms)
+
+
 def get_heavy_atom_numbers(smiles):
     py_mol = pybel.readstring("smi", smiles)
     py_mol.removeh()
     return len(py_mol.atoms)
+
+
 def get_AtomNum_list(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
     atom_type_list = []
@@ -44,9 +53,13 @@ def get_AtomNum_list(smiles):
         atom_type_list.remove(1)
     atom_type_list.sort()
     return atom_type_list
+
+
 def get_charge(smiles):
     mol = pybel.readstring("smi", smiles)
     return mol.charge
+
+
 def get_ring_number(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
     return rdk_mol.GetRingInfo().NumRings()
@@ -58,13 +71,19 @@ def has_stereo_isomer(smiles):
         return False
     else:
         return True
-def get_stereo_isomer(smiles):
+
+
+def get_stereo_isomer(smiles, canonical=False): # There is a bug for canonical=True, rarely happen.
     rdk_mol = Chem.MolFromSmiles(smiles)
     isomers = tuple(EnumerateStereoisomers(rdk_mol))
     smiles_list = []
     for smi in sorted(Chem.MolToSmiles(x, isomericSmiles=True) for x in isomers):
+        if canonical:
+            smi = get_canonical_smiles(smi)
         smiles_list.append(smi)
     return smiles_list
+
+
 def remove_chirality(smiles):
     s = ''.join(smiles.split('@'))
     return get_canonical_smiles(s)
@@ -84,12 +103,16 @@ def is_mol_stable(smiles):
     # two hydroxyl group cannot connect to same carbon
 
     return True
+
+
 def is_aromatic(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
     if rdk_mol.GetAromaticAtoms() == 0:
         return False
     else:
         return True
+
+
 def selection(smiles, type=None):
     if type is None:
         return False
@@ -123,6 +146,7 @@ def similarity_comparison(smiles1, smiles2, useChirality=False):
     # print(smiles1, smiles2)
     return DataStructs.DiceSimilarity(fp1, fp2)
 
+
 def rdk_similarity_comparison(smiles1, smiles2, maxPath=7):
     from rdkit.Chem import AllChem as Chem
     from rdkit import DataStructs
@@ -133,6 +157,7 @@ def rdk_similarity_comparison(smiles1, smiles2, maxPath=7):
     # print(smiles1, smiles2)
     return DataStructs.FingerprintSimilarity(fp1, fp2, metric=DataStructs.DiceSimilarity)
 
+
 def get_similarity_score(smiles, smiles_list, cutoff=None):
     score = 0.
     for s in smiles_list:
@@ -141,6 +166,7 @@ def get_similarity_score(smiles, smiles_list, cutoff=None):
             return score
     return score
 
+
 def is_similar(smiles, smiles_list, cutoff):
     score = 0.
     for s in smiles_list:
@@ -148,7 +174,9 @@ def is_similar(smiles, smiles_list, cutoff):
         if score > cutoff:
             return True
     return False
-def similarity_score(smiles1, smiles2, type='morgan'): # a switch function of similarity_comparison
+
+
+def similarity_score(smiles1, smiles2, type='morgan'):  # a switch function of similarity_comparison
     if type == 'rdk':
         a = rdk_similarity_comparison(smiles1, smiles2)
     else:
@@ -158,6 +186,3 @@ def similarity_score(smiles1, smiles2, type='morgan'): # a switch function of si
         return 0.
     else:
         return (a - cut) / (1 - cut)
-
-
-

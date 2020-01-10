@@ -64,6 +64,8 @@ def get_t_property_list(property, dir=None, name=None, weight=0.00):
     file_name += '.txt'
     if dir is not None:
         file_name = os.path.join(dir, file_name)
+    if not os.path.exists(file_name):
+        return None, None
     info = pd.read_csv(file_name, sep='\s+', header=0)
     t_list = np.array(info['#time(ps)'])
     property_list = np.array(info[Property_dict.get(property).get('property_unit')])
