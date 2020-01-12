@@ -13,12 +13,12 @@ def get_local_structure(smiles, radius=1):
     return info
 
 
-def get_fingerprint(smiles, type, count=False, hash=False, radius=1, nBits=1024, useFeatures=False, maxPath=7):
+def get_fingerprint(smiles, type, count=False, hash=False, radius=1, nBits=1024, useFeatures=False, minPath=1, maxPath=7):
     if type == 'rdk':
         if count: # output a dict :{identifier: occurance}
-            return Chem.UnfoldedRDKFingerprintCountBased(Chem.MolFromSmiles(smiles), maxPath=maxPath).GetNonzeroElements()
+            return Chem.UnfoldedRDKFingerprintCountBased(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath).GetNonzeroElements()
         else: # output a string: '01010101'
-            return Chem.RDKFingerprint(Chem.MolFromSmiles(smiles), maxPath=maxPath).ToBitString()
+            return Chem.RDKFingerprint(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath).ToBitString()
     elif type == 'pair':
         if count:
             return Pairs.GetAtomPairFingerprintAsIntVect(Chem.MolFromSmiles(smiles)).GetNonzeroElements()
