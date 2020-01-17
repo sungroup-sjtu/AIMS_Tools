@@ -7,6 +7,7 @@ from ...analyzer import is_converged, block_average
 from ...wrapper.ppf import delta_ppf
 from ...panedr import edr_to_df
 
+
 class Npt(GmxSimulation):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -37,7 +38,8 @@ class Npt(GmxSimulation):
 
     def prepare(self, model_dir='.', gro='conf.gro', top='topol.top', T=298, P=1, jobname=None, TANNEAL=800,
                 dt=0.002, nst_eq=int(4E5), nst_run=int(5E5), nst_edr=100, nst_trr=int(5E4), nst_xtc=int(1E3),
-                random_seed=-1, drde=False, tcoupl='langevin', diff_gk=False, mstools_dir=None, **kwargs) -> [str]:
+                random_seed=-1, drde=False, tcoupl='langevin', diff_gk=False, mstools_dir=None, T_basic=298, **kwargs) \
+            -> [str]:
         if os.path.abspath(model_dir) != os.getcwd():
             shutil.copy(os.path.join(model_dir, gro), gro)
             shutil.copy(os.path.join(model_dir, top), top)
@@ -50,7 +52,7 @@ class Npt(GmxSimulation):
             # TODO Assumes ppf file named ff.ppf
             if os.path.abspath(model_dir) != os.getcwd():
                 shutil.copy(os.path.join(model_dir, self._single_msd), self._single_msd)
-            delta_ppf(os.path.join(model_dir, 'ff.ppf'), 'ff.ppf', T)
+            delta_ppf(os.path.join(model_dir, 'ff.ppf'), 'ff.ppf', T, T_basic=T_basic)
             mol_numbers = self.gmx.get_top_mol_numbers(top)
             self.fast_export_single(ppf='ff.ppf', gro_out='_single.gro', top_out=top)
             self.gmx.modify_top_mol_numbers(top, [n for m, n in mol_numbers])
@@ -166,7 +168,7 @@ class Npt(GmxSimulation):
         potential_series = df.Potential
         density_series = df.Density
         t_real = df.Temperature.mean()
-        length = potential_series.index[-1] # unit: ps, cutoff_time = 7777 ps
+        length = potential_series.index[-1]  # unit: ps, cutoff_time = 7777 ps
 
         df_hvap = edr_to_df('hvap.edr')
         einter_series = (df_hvap.Potential)
@@ -254,7 +256,6 @@ class Npt(GmxSimulation):
         else:
             when = 0
 
-
         ### Get expansion and compressibility using fluctuation method
         nblock = 5
         blocksize = (length - when) / nblock
@@ -273,7 +274,8 @@ class Npt(GmxSimulation):
 
         temperature_and_stderr, pressure_and_stderr, potential_and_stderr, density_and_stderr, volume_and_stderr, ke_and_stderr, te_and_stderr, pv_and_stderr = \
             self.gmx.get_properties_stderr('npt.edr',
-                                           ['Temperature', 'Pressure', 'Potential', 'Density', 'Volume', 'Kinetic-En.', 'Total-Energy', 'pV'],
+                                           ['Temperature', 'Pressure', 'Potential', 'Density', 'Volume', 'Kinetic-En.',
+                                            'Total-Energy', 'pV'],
                                            begin=when)
         if info_dict['failed'] == []:
             info_dict['failed'].append(False)
@@ -287,18 +289,18 @@ class Npt(GmxSimulation):
         le_and_stderr.append(te_and_stderr[1] + pv_and_stderr[1])
         ad_dict = {
             'density': [i / 1000 for i in density_and_stderr],  # g/mL
-            'length'            : length,
-            'converge'          : when,
-            'temperature'       : temperature_and_stderr,  # K
-            'pressure'          : pressure_and_stderr,  # bar
-            'potential'         : potential_and_stderr,  # kJ/mol
-            'kinetic energy'    : ke_and_stderr, # kJ/mol
-            'total energy'      : te_and_stderr, # kJ/mol
-            'pV'                : pv_and_stderr,  # kJ/mol
-            'liquid enthalpy'   : le_and_stderr, # kJ/mol
-            'einter'            : list(block_average(einter_series.loc[when:])),  # kJ/mol
-            'expansion'         : [expansion, expan_stderr], # 1/K
-            'compress'          : [compressi, compr_stderr], # m^3/J
+            'length': length,
+            'converge': when,
+            'temperature': temperature_and_stderr,  # K
+            'pressure': pressure_and_stderr,  # bar
+            'potential': potential_and_stderr,  # kJ/mol
+            'kinetic energy': ke_and_stderr,  # kJ/mol
+            'total energy': te_and_stderr,  # kJ/mol
+            'pV': pv_and_stderr,  # kJ/mol
+            'liquid enthalpy': le_and_stderr,  # kJ/mol
+            'einter': list(block_average(einter_series.loc[when:])),  # kJ/mol
+            'expansion': [expansion, expan_stderr],  # 1/K
+            'compress': [compressi, compr_stderr],  # m^3/J
         }
         info_dict.update(ad_dict)
         return info_dict
@@ -323,11 +325,13 @@ class Npt(GmxSimulation):
             for i, charge in enumerate(charge_list):
                 mol_name = 'MO%i' % (i)
                 diff, stderr = diff_e_dict.get(mol_name)
-                econ += diff * charge_list[i]**2 * n_mol_list[i]
-                econ_stderr += stderr * charge_list[i]**2 * n_mol_list[i]
+                econ += diff * charge_list[i] ** 2 * n_mol_list[i]
+                econ_stderr += stderr * charge_list[i] ** 2 * n_mol_list[i]
             econ *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
             econ_stderr *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
-            info_dict.update({'Nernst-Einstein electrical conductivity and standard error via Einstein diffusion constant': [econ, econ_stderr]})
+            info_dict.update({
+                                 'Nernst-Einstein electrical conductivity and standard error via Einstein diffusion constant': [
+                                     econ, econ_stderr]})
 
         if diff_gk:
             # calculate diffusion constant using Green-Kubo relation
@@ -360,8 +364,8 @@ class Npt(GmxSimulation):
                 econ1 *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
                 econ2 *= 1.6 ** 2 / 1.38 * 10 ** 8 / temperature_and_stderr[0] / volume_and_stderr[0]
                 info_dict.update({
-                                     'Nernst-Einstein electrical conductivity and standard error via Green-Kubo diffusion constant': [
-                                         econ1, econ2]})
+                    'Nernst-Einstein electrical conductivity and standard error via Green-Kubo diffusion constant': [
+                        econ1, econ2]})
 
             os.remove('traj.gro')
 
@@ -384,7 +388,7 @@ class Npt(GmxSimulation):
             sp.communicate()
 
     # analyze viscosity
-    def analyze_vis(self,  mstools_dir, weight=0.00):
+    def analyze_vis(self, mstools_dir, weight=0.00):
         df = edr_to_df('npt.edr')
         temperature = df.Temperature.mean()
         volume = df.Volume.mean()
@@ -424,6 +428,7 @@ class Npt(GmxSimulation):
     def post_process(T_list, P_list, result_list, n_mol_list, **kwargs) -> (dict, str):
         def round5(x):
             return float('%.5e' % x)
+
         t_set = set(T_list)
         p_set = set(P_list)
         mols_number = min(n_mol_list)
@@ -433,8 +438,9 @@ class Npt(GmxSimulation):
         elif len(p_set) == 1:
             dens_stderr_list = [result['density'] for result in result_list]
             eint_stderr_list = [(np.array(result['einter']) / mols_number).tolist() for result in result_list]
-            hl_stderr_list = [((np.array(result['einter']) + np.array(result['kinetic energy']) + np.array(result['pV']))
-                              / mols_number).tolist() for result in result_list]
+            hl_stderr_list = [
+                ((np.array(result['einter']) + np.array(result['kinetic energy']) + np.array(result['pV']))
+                 / mols_number).tolist() for result in result_list]
             comp_stderr_list = [result['compress'] for result in result_list]
 
             t_p_dens_stderr_list = list(map(list, zip(T_list, P_list, dens_stderr_list)))
@@ -464,16 +470,16 @@ class Npt(GmxSimulation):
             t_comp_poly3 = {}
             t_dens_poly3[p] = [list(map(round5, _t_dens_coeff)), round5(_t_dens_score), min(_t_list), max(_t_list)]
             t_eint_poly3[p] = [list(map(round5, _t_eint_coeff)), round5(_t_eint_score), min(_t_list), max(_t_list)]
-            t_hl_poly3[p]   = [list(map(round5, _t_hl_coeff  )), round5(_t_hl_score  ), min(_t_list), max(_t_list)]
+            t_hl_poly3[p] = [list(map(round5, _t_hl_coeff)), round5(_t_hl_score), min(_t_list), max(_t_list)]
             t_comp_poly3[p] = [list(map(round5, _t_comp_coeff)), round5(_t_comp_score), min(_t_list), max(_t_list)]
 
             post_result = {
                 'p': P_list[0],
-                'density': t_p_dens_stderr_list, # [t, p, [density, stderr]]
-                'einter': t_p_eint_stderr_list, # [t, p, [intermolecular energy, stderr]]
-                'liquid enthalpy': t_p_hl_stderr_list, # [t, p, [liquid enthalpy, stderr]]
-                'compress': t_p_comp_stderr_list, # [t, p, [compressibility, stderr]]
-                'dens-t-poly3': t_dens_poly3, # {'pressure': [[coeff], score, t_min, t_max]}
+                'density': t_p_dens_stderr_list,  # [t, p, [density, stderr]]
+                'einter': t_p_eint_stderr_list,  # [t, p, [intermolecular energy, stderr]]
+                'liquid enthalpy': t_p_hl_stderr_list,  # [t, p, [liquid enthalpy, stderr]]
+                'compress': t_p_comp_stderr_list,  # [t, p, [compressibility, stderr]]
+                'dens-t-poly3': t_dens_poly3,  # {'pressure': [[coeff], score, t_min, t_max]}
                 'einter-t-poly3': t_eint_poly3,
                 'hl-t-poly3': t_hl_poly3,
                 'compress-t-poly3': t_comp_poly3,
@@ -574,7 +580,7 @@ class Npt(GmxSimulation):
         ### Default value
         result = {}
         molwt = 0.
-        converge_criterion = 0.95 # R value of fitting
+        converge_criterion = 0.95  # R value of fitting
         for smiles in smiles_list:
             py_mol = pybel.readstring('smi', smiles)
             molwt += py_mol.molwt
