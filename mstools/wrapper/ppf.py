@@ -166,6 +166,7 @@ def get_atom_hybridization(key):
     n_35+da -> n_2
     n_25-ta -> n_3
     cl0- -> cl1
+    s_4o -> s_4
     '''
     symbol = key[:2]
     degree = int(key[2])
@@ -372,6 +373,8 @@ def delta_ppf(ppf_file, ppf_out, T, drde_dict: Dict = None):
             'cl1_dl': 0.014,
             'br1_dl': 0.014,
             'i_1_dl': 0.014,
+
+            's_4_dl': 0.014,
         }
     paras_delta = {}
     for k, v in drde_dict.items():
