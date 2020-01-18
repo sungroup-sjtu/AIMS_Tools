@@ -376,9 +376,9 @@ def delta_ppf(ppf_file, ppf_out, T, T_basic=298, drde_dict: Dict = None):
             'i_1_dl': 0.014,
 
             's_4_dl': 0.014,
-            'b_5': 0.014,
-            'p_7': 0.014,
-            'p_3': 0.014,
+            'b_5_dl': 0.014,
+            'p_7_dl': 0.014,
+            'p_3_dl': 0.014,
         }
     paras_delta = {}
     for k, v in drde_dict.items():
