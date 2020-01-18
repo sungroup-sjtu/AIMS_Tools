@@ -115,7 +115,7 @@ class Npt(GmxSimulation):
         self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure)
         return commands
 
-    def extend(self, jobname=None, sh=None, info=None, dt=0.002) -> [str]:
+    def extend(self, jobname=None, sh=None, info=None, dt=0.002, hipri=False) -> [str]:
         '''
         if info == none, extend simulation for 500 ps
         '''
@@ -126,10 +126,11 @@ class Npt(GmxSimulation):
             continue_n = info.get('continue_n')[0]
         else:
             raise Exception('npt.extend(), info.get(\'continue_n\') must be 1 dimensional')
-        commands = self.extend_single(jobname=jobname, sh=sh, name=info.get('name')[0], continue_n=continue_n, dt=dt)
+        commands = self.extend_single(jobname=jobname, sh=sh, name=info.get('name')[0], continue_n=continue_n, dt=dt,
+                                      hipri=hipri)
         return commands
 
-    def extend_single(self, jobname=None, sh=None, name=None, continue_n=None, dt=0.002) -> [str]:
+    def extend_single(self, jobname=None, sh=None, name=None, continue_n=None, dt=0.002, hipri=False) -> [str]:
         nprocs = self.jobmanager.nprocs
         commands = []
 
@@ -150,7 +151,7 @@ class Npt(GmxSimulation):
         cmd = self.gmx.mdrun(name='hvap', nprocs=nprocs, n_omp=nprocs, rerun='npt.xtc', get_cmd=True)
         commands.append(cmd)
 
-        self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure, sh=sh)
+        self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure, sh=sh, hipri=hipri)
         return commands
 
     # analyze thermodynamic properties
