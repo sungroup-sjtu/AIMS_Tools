@@ -362,11 +362,11 @@ def delta_ppf(ppf_file, ppf_out, T, T_basic=298, drde_dict: Dict = None):
 
             'c_4_dl': 0.014,
             'c_3_dl': 0.005,
-            'c_2_dl': 0.005,
+            # 'c_2_dl': 0.005,
 
             'n_3_dl': 0.014,
             'n_2_dl': 0.005,
-            'n_1_dl': 0.005,
+            # 'n_1_dl': 0.005,
 
             'o_2_dl': 0.014,
             'o_1_dl': 0.005,
@@ -376,7 +376,9 @@ def delta_ppf(ppf_file, ppf_out, T, T_basic=298, drde_dict: Dict = None):
             'br1_dl': 0.014,
             'i_1_dl': 0.014,
 
+            's_2_dl': 0.014, # [S-]C#N
             's_4_dl': 0.014,
+            'cl4_dl': 0.014,
             'b_5_dl': 0.014,
             'p_7_dl': 0.014,
             'p_3_dl': 0.014,
