@@ -86,6 +86,11 @@ def get_stereo_isomer(smiles, canonical=False): # There is a bug for canonical=T
 
 def remove_chirality(smiles):
     s = ''.join(smiles.split('@'))
+    s = ''.join(s.split('H'))
+    s = ''.join(s.split('['))
+    s = ''.join(s.split(']'))
+    s = ''.join(s.split('/'))
+    s = ''.join(s.split('\\'))
     return get_canonical_smiles(s)
 
 
