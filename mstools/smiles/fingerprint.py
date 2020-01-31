@@ -13,19 +13,21 @@ def get_local_structure(smiles, radius=1):
     return info
 
 
-def get_fingerprint(smiles, type, count=False, hash=False, radius=1, nBits=1024, useFeatures=False, minPath=1, maxPath=7):
+def get_fingerprint(smiles, type, hash=False, radius=1, nBits=None, useFeatures=False, minPath=1, maxPath=7):
     if type == 'rdk':
-        if count: # output a dict :{identifier: occurance}
-            return Chem.UnfoldedRDKFingerprintCountBased(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath).GetNonzeroElements()
-        else: # output a string: '01010101'
-            return Chem.RDKFingerprint(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath).ToBitString()
+        if nBits is None:  # output a dict :{identifier: occurance}
+            return Chem.UnfoldedRDKFingerprintCountBased(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath)\
+                .GetNonzeroElements()
+        else:  # output a string: '01010101'
+            return Chem.RDKFingerprint(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath, fpSize=nBits)\
+                .ToBitString()
     elif type == 'pair':
-        if count:
+        if nBits is None:
             return Pairs.GetAtomPairFingerprintAsIntVect(Chem.MolFromSmiles(smiles)).GetNonzeroElements()
         else:
             return Pairs.GetAtomPairFingerprintAsBitVect(Chem.MolFromSmiles(smiles)).ToBitString()
     elif type == 'torsion':
-        if count:
+        if nBits is None:
             if hash:
                 return Torsions.GetHashedTopologicalTorsionFingerprint(Chem.MolFromSmiles(smiles)).GetNonzeroElements()
             else:
@@ -33,9 +35,11 @@ def get_fingerprint(smiles, type, count=False, hash=False, radius=1, nBits=1024,
         else:
             return None
     elif type == 'morgan':
-        if count:
+        if nBits is None:
             info = dict()
             Chem.GetMorganFingerprint(Chem.MolFromSmiles(smiles), radius, bitInfo=info, useFeatures=useFeatures)
+            for key in info:
+                info[key] = len(info[key])
             return info
         else:
             return Chem.GetMorganFingerprintAsBitVect(Chem.MolFromSmiles(smiles), radius, nBits=nBits, useFeatures=useFeatures).ToBitString()
