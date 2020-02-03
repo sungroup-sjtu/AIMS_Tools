@@ -13,7 +13,7 @@ def get_local_structure(smiles, radius=1):
     return info
 
 
-def get_fingerprint(smiles, type, hash=False, radius=1, nBits=None, useFeatures=False, minPath=1, maxPath=7):
+def get_fingerprint(smiles, type, nBits=None, radius=1, minPath=1, maxPath=7, useFeatures=False, hash=False):
     if type == 'rdk':
         if nBits is None:  # output a dict :{identifier: occurance}
             return Chem.UnfoldedRDKFingerprintCountBased(Chem.MolFromSmiles(smiles), minPath=minPath, maxPath=maxPath)\
