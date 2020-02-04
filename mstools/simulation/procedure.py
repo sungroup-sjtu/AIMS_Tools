@@ -10,11 +10,12 @@ class Procedure:
     NPT_BINARY_SLAB = 'npt-binary-slab'
     NPT_PPM = 'ppm'
     NPT_2 = 'npt-2'
-    NPT_3 = 'npt-3'
+    NPT_3 = 'npt-2'
     NVT_MULTI_2 = 'nvt-multi-2'
     NVT_MULTI_3 = 'nvt-multi-3'
+    HYDRA_FE = 'hydra_fe'
     choices = [NPT, NVT_CV, NVT_VISCOSITY, NVT_VACUUM, NVT_SLAB, NPT_BINARY_SLAB, NPT_PPM, NPT_MULTI, NVT_MULTI,
-               NPT_V_RESCALE, NPT_2, NPT_3, NVT_MULTI_2, NVT_MULTI_3]
+               NPT_V_RESCALE, NPT_2, NPT_3, NVT_MULTI_2, NVT_MULTI_3, HYDRA_FE]
 
     prior = {
         NVT_CV: NPT,

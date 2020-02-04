@@ -69,11 +69,14 @@ class GMX:
             sp = Popen(cmd.split(), stdout=stdout, stderr=stderr)
             sp.communicate()
 
-    def minimize(self, gro, top, nprocs=1, silent=False, name='em', vacuum=False):
-        if not vacuum:
-            self.prepare_mdp_from_template('t_em.mdp')
+    def minimize(self, gro, top, nprocs=1, silent=False, name='em', vacuum=False, fe_calc=False):
+        if fe_calc == False:
+            if not vacuum:
+                self.prepare_mdp_from_template('t_em.mdp')
+            else:
+                self.prepare_mdp_from_template('t_em_vacuum.mdp')
         else:
-            self.prepare_mdp_from_template('t_em_vacuum.mdp')
+            self.prepare_mdp_from_FEtemplate('t_embox_fe.mdp')
 
         self.grompp(gro=gro, top=top, tpr_out=name + '.tpr', silent=silent)
         self.mdrun(name=name, nprocs=nprocs, silent=silent)
@@ -133,6 +136,8 @@ class GMX:
         if dielectric is None:
             dielectric = self._DIELECTRIC
 
+
+
         with open(template) as f_t:
             contents = f_t.read()
         contents = contents.replace('%T%', str(T)).replace('%P%', str(P)).replace('%nsteps%', str(int(nsteps))) \
@@ -147,6 +152,72 @@ class GMX:
 
         with open(mdp_out, 'w') as f_mdp:
             f_mdp.write(contents)
+
+    def prepare_mdp_from_FEtemplate(self, FEtemplate, FEmdp_out='FEgrompp.mdp', tcoupl='langevin', pcoupl='parrinello-rahman',
+                                    T=298, P=1, nsteps=200000, dt=0.001, nstenergy=100, restart=False, constraints='h-bonds',
+                                    dielectric=None, scalpha=0.5, scpower=1, scsigma=0.3, dhdl=0):
+
+        FE_template = os.path.join(GMX.TEMPLATE_DIR, FEtemplate)
+        if not os.path.exists(FE_template):
+            raise GmxError('Free Energy mdp template not found')
+
+        if tcoupl.lower() == 'langevin':
+            integrator = 'sd'
+            tcoupl = 'no'
+            tau_t = str(0.001 / dt)  # inverse friction coefficient
+        else:
+            raise Exception('Invalid tcoupl, only Langevin is adapted for coupling')
+
+        if pcoupl.lower() == 'berendsen':
+            tau_p = '0.5'
+        elif pcoupl.lower() == 'parrinello-rahman':
+            tau_p = '2.0'
+        else:
+            raise Exception('Invalid pcoupl, should be one of berendsen or parrinello-rahman')
+
+        if restart:
+            genvel = 'no'
+            continuation = 'yes'
+        else:
+            genvel = 'yes'
+            continuation = 'no'
+        if dielectric is None:
+            dielectric = self._DIELECTRIC
+
+        #set name for solute
+        with open('topol.top') as top_file:
+            top_contents = top_file.readlines()
+            solt_key = top_contents[7]
+            solt_mol = solt_key.split('\t')[0]
+
+        #set lambda vector for vdw and coulomb
+        vdw_vector = [0.00, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
+                       1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
+        coul_vector = [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
+                        0.00, 0.30, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00]
+
+        if len(vdw_vector)!=len(coul_vector):
+            raise GmxError('Invalid lambda vectors')
+
+        vdw_lambdas = str(vdw_vector).strip('[]').replace(',','')
+        coul_lambdas = str(coul_vector).strip('[]').replace(',', '')
+
+
+        with open(FE_template) as f_t_fe:
+            contents = f_t_fe.read()
+        contents = contents.replace('%T%', str(T)).replace('%ref-p%', str(P)).replace('%nsteps%', str(int(nsteps))) \
+            .replace('%dt%', str(dt)).replace('%nstenergy%', str(nstenergy)).replace('%nstdhdl%', str(dhdl)) \
+            .replace('%genvel%', genvel).replace('%continuation%', continuation) \
+            .replace('%integrator%', integrator).replace('%tcoupl%', tcoupl).replace('%tau-t%', tau_t) \
+            .replace('%pcoupl%', pcoupl).replace('%taup%', tau_p).replace('%constraints%', constraints)\
+            .replace('%sc-alpha%', str(scalpha)).replace('%sc-power%', str(scpower)).replace('%sc-sigma%', str(scsigma))\
+            .replace('%molecule%', solt_mol).replace('%vdw_lambdas%', vdw_lambdas).replace('%coul_lambdas%', coul_lambdas)
+
+
+
+
+        with open(FEmdp_out, 'w') as FE_f_mdp:
+            FE_f_mdp.write(contents)
 
     def energy(self, edr, properties: [str], begin=0, end=None, skip=None, fluct_props=False, get_cmd=False, out=None):
         cmd = '%s -quiet -nobackup energy -f %s -b %s' % (self.GMX_BIN, edr, str(begin))

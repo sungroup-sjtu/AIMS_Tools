@@ -29,7 +29,8 @@ class DFF:
         self.DFFEXP_BIN = os.path.join(self.DFF_BIN_DIR, 'dffexp.exe')
         self.DFFFIT_BIN = os.path.join(self.DFF_BIN_DIR, 'dfffit.exe')
         self.default_db = default_db or 'TEAMFF'
-        self.default_table = default_table or 'MGI'
+        self.default_table = default_table or 'MGI' or 'TEAM_LS'
+        
 
     def convert_model_to_msd(self, model, msd_out, dfi_name='convert'):
         dfi = open(os.path.join(DFF.TEMPLATE_DIR, 't_convert.dfi')).read()
@@ -53,7 +54,13 @@ class DFF:
             model_path.append(os.path.abspath(model))
         db = os.path.abspath(db)
         ppf_out = os.path.abspath(ppf_out)
-        dfi = open(os.path.join(DFF.TEMPLATE_DIR, 't_checkout.dfi')).read()
+        
+        #include scaled LJ coupling for free energy calculations with TEAM_LS
+        if self.default_table == 'TEAM_LS':
+            dfi = open(os.path.join(DFF.TEMPLATE_DIR, 't_checkout_fe.dfi')).read()
+        else:
+            dfi = open(os.path.join(DFF.TEMPLATE_DIR, 't_checkout.dfi')).read()
+        
         dfi = dfi.replace('%DATABASE%', db).replace('%TABLE%', table).replace('%MODELS%', '\n'.join(model_path)) \
             .replace('%OUTPUT%', ppf_out).replace('%LOG%', os.path.abspath('checkout.dfo'))
         with open(dfi_name + '.dfi', 'w') as f:
