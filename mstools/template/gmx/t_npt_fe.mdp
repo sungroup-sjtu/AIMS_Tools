@@ -1,0 +1,45 @@
+;Run control 
+integrator = %integrator%; sd
+dt = %dt%; 0.002 
+nsteps = %nsteps% 
+; Output control 
+; Neighbor searching and short-range nonbonded interactions 
+rlist = 1.2 
+coulombtype = PME 
+rcoulomb = 1.2 
+vdwtype = cutoff 
+rvdw = 1.2 
+DispCorr = EnerPres
+;Temperature control
+t-coupl = %tcoupl%; no;
+tc-grps = system
+tau-t = %tau-t%; 1.0
+ref-t = %T%; 298
+gen-vel = %genvel%
+;Pressure control
+pcoupl = %pcoupl%; parinello-rahman; berendsen;
+tau-p = %taup%
+compressibility = 4.5e-05
+ref-p = %ref-p%; 1
+; Bonds 
+constraints = %constraints%; h-bonds  
+constraint-algorithm = lincs 
+continuation = %continuation%; yes; no 
+; Free energy control  
+free_energy = yes
+couple-moltype = %molecule% ; name of moleculetype to decouple 
+couple-lambda0 = none  
+couple-lambda1 = vdw-q  
+couple-intramol = no 
+; init_lambda_state %lambdapoints% 
+init_lambda_state = %lambda% 
+vdw_lambdas =  %vdw_lambdas%
+coul_lambdas = %coul_lambdas%
+calc_lambda_neighbors = 2 
+sc-alpha = %sc-alpha% 
+sc-power = %sc-alpha% 
+sc-sigma = %sc-sigma%
+; Output control
+nstenergy = %nstenergy%
+nstdhdl = %nstdhdl%
+
