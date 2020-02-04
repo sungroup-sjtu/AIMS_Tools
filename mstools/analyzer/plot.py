@@ -2,19 +2,21 @@ import matplotlib.pyplot as plt
 import subprocess, sys
 from subprocess import Popen, PIPE
 
+
 def plot(x_list, *args):
     for arg in args:
         plt.plot(x_list, arg)
     plt.show()
 
-def gnuplot(output, xlabel, ylabel, title=None, txt_list=[], type_list=[], title_list=[], x_min=None, x_max=None,
+
+def gnuplot(output, xlabel, ylabel, txt_list, type_list, title_list, title=None, x_min=None, x_max=None,
             y_min=None, y_max=None, x_log_scale=False, y_log_scale=False, reciprical_x=False, legend_position=None,
-            panel=None, font=25):
+            panel=None, font=25, xtics=None, ytics=None):
     f = open('%s.gpi' % (output), 'w')
     info = 'set terminal pngcairo size 1200,1000 enhanced font \'Times New Roman,%i\'\n' % font
     info += 'set output "%s.png"\n' % (output)
     if title is not None:
-        info += 'set title "%s"\n' % (title.replace('@', '{/Symbol a}'))
+        info += 'set title "%s" font \'Times New Roman,25\'\n' % (title.replace('@', '{/Symbol a}'))
     info += 'set border lw 1.5\n'
 
     if reciprical_x:
@@ -34,6 +36,10 @@ def gnuplot(output, xlabel, ylabel, title=None, txt_list=[], type_list=[], title
         dy = y_max - y_min
     if panel is not None and dx is not None and dy is not None:
         info += 'set label \'%s\' at %f,%f\n' % (panel, x_min-0.14*dx, y_max)
+    if xtics is not None:
+        info += 'set xtics %f\n' % xtics
+    if ytics is not None:
+        info += 'set ytics %f\n' % ytics
 
     info += 'set style line 1 lt 1 lw 1 lc rgb "#000000" # black\n'
     info += 'set style line 2 lt 1 lw 1 lc rgb "#ff0000" # red\n'
@@ -53,9 +59,9 @@ def gnuplot(output, xlabel, ylabel, title=None, txt_list=[], type_list=[], title
     color_id = 1
     for i, txt in enumerate(txt_list):
         if type_list[i] == 'errorbars':
-            info += '"%s" u %s2:3 with errorbars ls %i title "%s"' % (txt, line, color_id, title_list[i])
+            info += '"%s" u %s2:3 with errorbars ls %i lw 2 title "%s"' % (txt, line, color_id, title_list[i])
         elif type_list[i] == 'xerrorbars':
-            info += '"%s" u %s2:3 with xerrorbars ls %i title "%s"' % (txt, line, color_id, title_list[i])
+            info += '"%s" u %s2:3 with xerrorbars ls %i lw 2 title "%s"' % (txt, line, color_id, title_list[i])
         elif type_list[i] == 'errorlines':
             info += '"%s" u %s2:3 with errorlines ls %i lw 5 title "%s"' % (txt, line, color_id, title_list[i])
         elif type_list[i] == 'lines':
