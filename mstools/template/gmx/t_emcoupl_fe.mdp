@@ -38,7 +38,7 @@ coul_lambdas = %coul_lambdas%
 calc_lambda_neighbors = 2 
 ; Options for the decoupling 
 sc-alpha = %sc-alpha% 
-sc-power = 1 
-sc-sigma = 0.3 
+sc-power = %sc-power%
+sc-sigma = %sc-sigma%
 nstdhdl = 0 
 

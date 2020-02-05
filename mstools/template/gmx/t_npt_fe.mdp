@@ -37,7 +37,7 @@ vdw_lambdas =  %vdw_lambdas%
 coul_lambdas = %coul_lambdas%
 calc_lambda_neighbors = 2 
 sc-alpha = %sc-alpha% 
-sc-power = %sc-alpha% 
+sc-power = %sc-power%
 sc-sigma = %sc-sigma%
 ; Output control
 nstenergy = %nstenergy%
