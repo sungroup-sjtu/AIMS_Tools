@@ -79,7 +79,7 @@ class HydraFe(GmxSimulation):
         commands.append(cmd)
 
         # NPT production with Langevin thermostat and Parrinello-Rahman barostat
-        self.gmx.prepare_mdp_from_FEtemplate('t_npt_fe.mdp', FEmdp_out='grompp-npt-prod.mdp', T=T, P=P, dt=0.002, nsteps=100000, tcoupl=tcoupl, pcoupl='parrinello-rahman', restart=True, step='prod')
+        self.gmx.prepare_mdp_from_FEtemplate('t_npt_fe.mdp', FEmdp_out='grompp-npt-prod.mdp', T=T, P=P, dt=0.002, nsteps=200000, tcoupl=tcoupl, pcoupl='parrinello-rahman', restart=True, step='prod')
         cmd = self.gmx.grompp(mdp='grompp-npt-prod.mdp', gro='npt-eq.gro', top=top, tpr_out='npt-prod.tpr',
                               get_cmd=True)
         commands.append(cmd)

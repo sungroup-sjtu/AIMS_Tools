@@ -53,6 +53,7 @@ class GMX:
         ###
 
         cmd = '%s -quiet -nobackup -ntomp %i -deffnm %s' % (self.GMX_MDRUN, n_omp, name)
+        #cmd = '%s -quiet -nobackup -nt 1 -deffnm %s' % (self.GMX_MDRUN, n_omp, name)
         # always use mpirun even if only one process
         cmd = 'mpirun -np %i ' % n_mpi + cmd
 
@@ -154,7 +155,7 @@ class GMX:
             f_mdp.write(contents)
 
     def prepare_mdp_from_FEtemplate(self, FEtemplate, FEmdp_out='FEgrompp.mdp', tcoupl='langevin', pcoupl='parrinello-rahman',
-                                    T=298, P=1, nsteps=200000, dt=0.001, nstenergy=100, restart=False, constraints='h-bonds',
+                                    T=298, P=1, nsteps=400000, dt=0.001, nstenergy=100, restart=False, constraints='h-bonds',
                                     dielectric=None, scalpha=0.5, scpower=1, scsigma=0.3, step='eq', lambdaneighs=2):
 
         FE_template = os.path.join(GMX.TEMPLATE_DIR, FEtemplate)

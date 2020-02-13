@@ -4,7 +4,7 @@ dt = %dt%; 0.002
 nsteps = %nsteps% 
 ; Neighbor searching and short-range nonbonded interactions 
 rlist =1.2 
-coulombtypc = PME 
+coulombtype = PME 
 rcoulomb = 1.2 
 vdwtype = cutoff 
 rvdw = 1.2 
