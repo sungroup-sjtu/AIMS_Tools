@@ -2,7 +2,11 @@
 integrator = %integrator%; sd
 dt = %dt%; 0.002 
 nsteps = %nsteps% 
-; Output control 
+; Output control
+nstxout = 10000
+nstvout = 10000
+nstfout = 1000
+nstxtcout = 1000
 ; Neighbor searching and short-range nonbonded interactions 
 rlist = 1.2 
 coulombtype = PME 
@@ -22,7 +26,7 @@ tau-p = %taup%
 compressibility = 4.5e-05
 ref-p = %ref-p%; 1
 ; Bonds 
-constraints = %constraints%; h-bonds  
+constraints = h-bonds; h-bonds; none  
 constraint-algorithm = lincs 
 continuation = %continuation%; yes; no 
 ; Free energy control  

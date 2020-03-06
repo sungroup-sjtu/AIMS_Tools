@@ -155,8 +155,9 @@ class GMX:
             f_mdp.write(contents)
 
     def prepare_mdp_from_FEtemplate(self, FEtemplate, FEmdp_out='FEgrompp.mdp', tcoupl='langevin', pcoupl='parrinello-rahman',
-                                    T=298, P=1, nsteps=400000, dt=0.001, nstenergy=100, restart=False, constraints='h-bonds',
-                                    dielectric=None, scalpha=0.5, scpower=1, scsigma=0.3, step='eq', lambdaneighs=2):
+                                    T=298, P=1, TANNEAL=368, nsteps=400000, dt=0.001, nstxtcout=10000, xtcgrps='System',
+                                    restart=False, constraints='h-bonds', dielectric=None, scalpha=0.5,
+                                    scpower=1, scsigma=0.3, step='eq', lambdaneighs=2):
 
         FE_template = os.path.join(GMX.TEMPLATE_DIR, FEtemplate)
         if not os.path.exists(FE_template):
@@ -197,10 +198,17 @@ class GMX:
             solt_mol = solt_key.split('\t')[0]
 
         #set lambda vector for vdw and coulomb
-        vdw_vector = [0.00, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
-                       1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
-        coul_vector = [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
-                        0.00, 0.30, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00]
+        #vdw_vector = [0.00, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.60, 0.70, 0.80,
+        #               1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
+        #coul_vector = [0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
+        #                0.00, 0.30, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00]
+
+        vdw_vector = [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 0.80, 0.70, 0.60, 0.50, 0.45,
+                        0.40, 0.35, 0.30, 0.25, 0.20, 0.10, 0.00]
+
+
+        coul_vector = [1.00, 0.95, 0.90, 0.80, 0.70, 0.60, 0.30, 0.00, 0.00, 0.00, 0.00, 0.00,
+                        0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00]
 
         if len(vdw_vector)!=len(coul_vector):
             raise GmxError('Invalid lambda vectors')
@@ -208,17 +216,19 @@ class GMX:
         vdw_lambdas = str(vdw_vector).strip('[]').replace(',','')
         coul_lambdas = str(coul_vector).strip('[]').replace(',', '')
 
+        nstenergy = 100
 
         with open(FE_template) as f_t_fe:
             contents = f_t_fe.read()
         contents = contents.replace('%T%', str(T)).replace('%ref-p%', str(P)).replace('%nsteps%', str(int(nsteps))) \
             .replace('%dt%', str(dt)).replace('%nstenergy%', str(nstenergy)).replace('%nstdhdl%', str(dhdl)) \
+            .replace('%nstxtcout%', str(nstxtcout)).replace('%xtcgrps%', str(xtcgrps)) \
             .replace('%genvel%', genvel).replace('%continuation%', continuation) \
             .replace('%integrator%', integrator).replace('%tcoupl%', tcoupl).replace('%tau-t%', tau_t) \
             .replace('%pcoupl%', pcoupl).replace('%taup%', tau_p).replace('%constraints%', constraints)\
             .replace('%sc-alpha%', str(scalpha)).replace('%sc-power%', str(scpower)).replace('%sc-sigma%', str(scsigma))\
             .replace('%molecule%', solt_mol).replace('%vdw_lambdas%', vdw_lambdas).replace('%coul_lambdas%', coul_lambdas)\
-            .replace('%calc_lambda_neighbors%', str(lambdaneighs))
+            .replace('%calc_lambda_neighbors%', str(lambdaneighs)).replace('%TANNEAL%', str(TANNEAL))
 
 
         with open(FEmdp_out, 'w') as FE_f_mdp:

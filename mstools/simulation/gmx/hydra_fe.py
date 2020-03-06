@@ -34,7 +34,19 @@ class HydraFe(GmxSimulation):
             if ppf is not None:
                 shutil.copy(os.path.join(ppf), 'ff.ppf')
 
-    def prepare(self, model_dir='.', gro='conf.gro', top='topol.top', T=298, P=1, jobname=None, dt=0.002,
+    def FF_cleanup(self, itp_in='topol.itp'):
+        with open(itp_in, 'r+') as f_in:
+            lines = f_in.readlines()
+
+        with open(itp_in, 'w') as f_out:
+            for line in lines:
+                if 'o_2w       o_2w' in line:
+                    continue
+                else:
+                    f_out.write(line)
+        return f_out
+
+    def prepare(self, model_dir='.', gro='conf.gro', top='topol.top', T=298, P=1, TANNEAL=800, jobname=None, dt=0.002,
                 nst_eq=int(1E5), nst_run=int(5E5), nst_edr=100, nst_trr=int(5E4), nst_xtc=int(1E3),
                 random_seed=-1, drde=False, tcoupl='langevin', diff_gk=False, mstools_dir=None, **kwargs) -> [str]:
         if os.path.abspath(model_dir) != os.getcwd():
@@ -63,9 +75,24 @@ class HydraFe(GmxSimulation):
         commands.append(cmd)
         gro_em = 'alq-em.gro'
 
+        #NVT annealing with Langevin thermostat
+        if TANNEAL is not None:
+            self.gmx.prepare_mdp_from_FEtemplate('t_fenvt_anneal.mdp', FEmdp_out='grompp-anneal.mdp', T=T, TANNEAL=TANNEAL, nsteps=int(1E5))
+            cmd = self.gmx.grompp(mdp='grompp-anneal.mdp', gro='alq-em.gro', top=top, tpr_out='anneal.tpr', get_cmd=True)
+            commands.append(cmd)
+            cmd = self.gmx.mdrun(name='anneal', nprocs=nprocs, get_cmd=True)
+            commands.append(cmd)
+
+            gro_em = 'anneal.gro'
+
+
         #NVT equilibration with Langevin thermostat
         self.gmx.prepare_mdp_from_FEtemplate('t_nvteq_fe.mdp', FEmdp_out='grompp-nvt-eq.mdp', T=T, restart=False, step='eq')
-        cmd = self.gmx.grompp(mdp='grompp-nvt-eq.mdp', gro='alq-em.gro', top=top, tpr_out='nvt-eq.tpr', get_cmd=True)
+        if TANNEAL is not None:
+            cmd = self.gmx.grompp(mdp='grompp-nvt-eq.mdp', gro='anneal.gro', top=top, tpr_out='nvt-eq.tpr', get_cmd=True)
+        else:
+            cmd = self.gmx.grompp(mdp='grompp-nvt-eq.mdp', gro='alq-em.gro', top=top, tpr_out='nvt-eq.tpr',
+                                  get_cmd=True)
         commands.append(cmd)
         cmd = self.gmx.mdrun(name='nvt-eq', nprocs=nprocs, get_cmd=True)
         commands.append(cmd)
@@ -79,7 +106,7 @@ class HydraFe(GmxSimulation):
         commands.append(cmd)
 
         # NPT production with Langevin thermostat and Parrinello-Rahman barostat
-        self.gmx.prepare_mdp_from_FEtemplate('t_npt_fe.mdp', FEmdp_out='grompp-npt-prod.mdp', T=T, P=P, dt=0.002, nsteps=200000, tcoupl=tcoupl, pcoupl='parrinello-rahman', restart=True, step='prod')
+        self.gmx.prepare_mdp_from_FEtemplate('t_npt_fe.mdp', FEmdp_out='grompp-npt-prod.mdp', T=T, P=P, dt=0.002, nsteps=10000000, tcoupl=tcoupl, pcoupl='parrinello-rahman', restart=True, step='prod')
         cmd = self.gmx.grompp(mdp='grompp-npt-prod.mdp', gro='npt-eq.gro', top=top, tpr_out='npt-prod.tpr',
                               get_cmd=True)
         commands.append(cmd)
@@ -87,6 +114,75 @@ class HydraFe(GmxSimulation):
         commands.append(cmd)
         self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure)
         return commands
+
+    def filemanager(self, TANNEAL=None, lambdas=None):
+        print('setting up FE directories')
+
+        src = os.getcwd()
+
+        if TANNEAL is not None:
+            files = ['topol.top', 'topol.itp', 'conf.gro', '_job_slurm.sh', 'grompp-alq-em.mdp', 'grompp-embox.mdp',
+                     'grompp-npt-eq.mdp', 'grompp-nvt-eq.mdp', 'grompp-npt-prod.mdp', 'grompp-anneal.mdp']
+            FE_temp = ['grompp-alq-em.mdp', 'grompp-npt-eq.mdp', 'grompp-nvt-eq.mdp', 'grompp-npt-prod.mdp',
+                       '_job_slurm.sh', 'grompp-anneal.mdp']
+            FE_out = ['alq_em.mdp', 'npt_eq.mdp', 'nvt_eq.mdp', 'npt_prod.mdp', 'FE_job_slurm.sh', 'anneal.mdp']
+
+        else:
+            files = ['topol.top', 'topol.itp', 'conf.gro', '_job_slurm.sh', 'grompp-alq-em.mdp', 'grompp-embox.mdp',
+                     'grompp-npt-eq.mdp', 'grompp-nvt-eq.mdp', 'grompp-npt-prod.mdp']
+            FE_temp = ['grompp-alq-em.mdp', 'grompp-npt-eq.mdp', 'grompp-nvt-eq.mdp', 'grompp-npt-prod.mdp',
+                       '_job_slurm.sh']
+            FE_out = ['alq_em.mdp', 'npt_eq.mdp', 'nvt_eq.mdp', 'npt_prod.mdp', 'FE_job_slurm.sh']
+
+        print('set lambda points')
+        lambda_points = {}
+        names = []
+        temp_paths = []
+        for i in range(0, lambdas):
+            name = 'lambda-%i' % i
+            os.mkdir(name)
+            names.append(name)
+            for nm in names:
+                dest = os.path.abspath(nm)
+            lambda_points[i] = name, dest
+
+        for point in lambda_points:
+            lambda_dir, lambda_dest = lambda_points[point]
+            for file in files:
+                shutil.copy(file, lambda_dest)
+            os.chdir(lambda_dest)
+            for out, temp in zip(FE_out, FE_temp):
+                with open(temp, 'r') as f_in, open(out, 'w') as f_out:
+                    contents = f_in.read()
+                    contents = contents.replace('%lambda%', str(point))
+                    temp_paths.append(os.path.join(lambda_dest, temp))
+                    f_out.write(contents)
+
+        for path in temp_paths:
+            os.remove(path)
+
+        for pnt in lambda_points:
+            dir, dest = lambda_points[pnt]
+            os.chdir(dest)
+            os.rename('alq_em.mdp', 'grompp-alq-em.mdp')
+            os.rename('npt_eq.mdp', 'grompp-npt-eq.mdp')
+            os.rename('nvt_eq.mdp', 'grompp-nvt-eq.mdp')
+            os.rename('npt_prod.mdp', 'grompp-npt-prod.mdp')
+            os.rename('FE_job_slurm.sh', '_job_slurm.sh')
+            if TANNEAL is not None:
+                os.rename('anneal.mdp', 'grompp-anneal.mdp')
+
+            with open('_job_slurm.sh', 'r') as job_in:
+                lines = job_in.readlines()
+
+            with open('_job_slurm.sh', 'w') as job_out:
+                for line in lines:
+                    if line.startswith("#SBATCH -D"):
+                        continue
+                    else:
+                        job_out.write(line)
+
+            # os.system('sbatch _job_slurm.sh')
 
     #     # Rerun enthalpy of vaporization
     #     commands.append('export GMX_MAXCONSTRWARN=-1')

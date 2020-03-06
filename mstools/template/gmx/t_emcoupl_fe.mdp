@@ -21,7 +21,7 @@ vdwtype = cutoff
 rvdw = 1.2 
 DispCorr = EnerPres
 ; Bonds 
-constraints = %constraints%; none; h-bonds;  
+constraints = h-bonds  
 constraint-algorithm = lincs 
 continuation = no 
 lincs-order = 12
