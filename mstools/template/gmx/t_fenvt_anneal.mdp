@@ -1,0 +1,51 @@
+integrator      = sd
+dt              = %dt%
+nsteps          = %nsteps%
+;Trajectory output control
+nstcalcenergy      = -1
+nstxout = 10000
+nstvout = 10000
+nstfout = 1000
+nstxtcout = 1000
+nstxout-compressed = %nstxtcout%
+compressed-x-grps  = %xtcgrps%
+;Neighbor searching and short-range nonbonded interactions
+coulombtype     = PME
+rcoulomb        = 1.2
+vdwtype = cutoff 
+rvdw = 1.2 
+DispCorr = EnerPres
+;Temperature control
+tcoupl          = no
+tc-grps         = System
+tau-t           = 1
+ref-t           = %T%
+;Bonds control
+constraints      = h-bonds
+constraint-algorithm = lincs
+continuation     = %continuation%
+lincs-order =
+;Annealing control
+annealing         = single
+annealing_npoints = 5
+annealing_time    = 0 25 50 75 100
+annealing_temp    = 0 %TANNEAL% %TANNEAL% %T% %T%
+;Free energy control
+free_energy = yes 
+couple-moltype = %molecule% ; name of moleculetype to  decouple 
+couple-lambda0 = none  
+couple-lambda1 = vdw-q  
+couple-intramol = no 
+;init lambda state %lambda points%
+init_lambda_state = %lambda%
+vdw_lambdas =  %vdw_lambdas%
+coul_lambdas = %coul_lambdas%
+calc_lambda_neighbors = %calc_lambda_neighbors% ; 2 
+; Options for the decoupling 
+sc-alpha = %sc-alpha% ; 0.5 
+sc-power = %sc-power% ; 1
+sc-sigma =%sc-sigma%; 0.3 
+; Output control
+nstenergy = %nstenergy%
+nstdhdl = %nstdhdl%; 0   
+
