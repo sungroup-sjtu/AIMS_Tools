@@ -432,6 +432,7 @@ class Npt(GmxSimulation):
 
         t_set = set(T_list)
         p_set = set(P_list)
+
         mols_number = min(n_mol_list)
 
         if len(t_set) < 5:
@@ -459,6 +460,7 @@ class Npt(GmxSimulation):
             _hl_list = [element[2][0] for element in t_p_hl_stderr_list]
             _comp_list = [element[2][0] for element in t_p_comp_stderr_list]
             from ...analyzer.fitting import polyfit
+
             _t_dens_coeff, _t_dens_score = polyfit(_t_list, _dens_list, 3)
             _t_eint_coeff, _t_eint_score = polyfit(_t_list, _eint_list, 3)
             _t_hl_coeff, _t_hl_score = polyfit(_t_list, _hl_list, 3)
