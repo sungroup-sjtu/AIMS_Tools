@@ -17,6 +17,7 @@ class NvtExample(GmxSimulation):
 
         print('Create box using DFF ...')
         self.dff.build_box_after_packmol(self.mol2_list, self.n_mol_list, self.msd, mol_corr='init.pdb', length=30)
+
         if export:
             self.export(ppf=ppf)
 

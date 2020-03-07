@@ -31,7 +31,7 @@ class Slurm(JobManager):
                 cmds_replaced.append(cmd)
         return n_mpi, cmds_replaced
 
-    def generate_sh(self, workdir, commands, name, sh=None, n_tasks=None, **kwargs):
+    def generate_sh(self, workdir, commands, name, sh=None, n_tasks=None, ngpu=None, hipri=False, **kwargs):
         '''
         If do not set n_tasks, default a whole node is used (which means n_tasks equal to self.nprocs_request)
 
@@ -56,10 +56,17 @@ class Slurm(JobManager):
         else:
             n_node = int(math.ceil(n_tasks / self.nprocs_request))
 
-        if self.ngpu > 0:
+        if ngpu is not None:
+            gpu_cmd = '#SBATCH --gres=gpu:%i\n' % ngpu
+        elif self.ngpu > 0:
             gpu_cmd = '#SBATCH --gres=gpu:%i\n' % self.ngpu * n_node
         else:
             gpu_cmd = ''
+
+        if hipri:
+            hipri_cmd = '#SBATCH --qos=hipri\n'
+        else:
+            hipri_cmd = ''
 
         with open(sh, 'w') as f:
             f.write('#!/bin/bash\n'
@@ -72,6 +79,7 @@ class Slurm(JobManager):
                     '#SBATCH --nodes=%(n_node)i\n'
                     '#SBATCH --ntasks=%(n_tasks)i\n'
                     '%(gpu_cmd)s'
+                    '%(hipri_cmd)s'
                     '\n'
                     '%(env_cmd)s\n\n'
                     % ({'name'   : name,
@@ -82,6 +90,7 @@ class Slurm(JobManager):
                         'n_node' : n_node,
                         'n_tasks': n_tasks,
                         'gpu_cmd': gpu_cmd,
+                        'hipri_cmd': hipri_cmd,
                         'env_cmd': self.env_cmd,
                         'workdir': workdir
                         })

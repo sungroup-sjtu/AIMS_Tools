@@ -12,6 +12,7 @@ class NvtSlab(GmxSimulation):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.procedure = 'nvt-slab'
+        self.dt = 0.002
         self.logs = ['nvt.log']
         self.n_atom_default = 12000
         self.n_mol_default = 400
@@ -44,6 +45,7 @@ class NvtSlab(GmxSimulation):
     def prepare(self, model_dir='.', gro='conf.gro', top='topol.top', T=298, jobname=None, TANNEAL=None,
                 dt=0.002, nst_eq=int(4E5), nst_run=int(4E6), nst_edr=100, nst_trr=int(5E4), nst_xtc=int(5E2),
                 drde=False, **kwargs) -> [str]:
+        self.dt = dt
         if os.path.abspath(model_dir) != os.getcwd():
             shutil.copy(os.path.join(model_dir, gro), gro)
             shutil.copy(os.path.join(model_dir, top), top)
@@ -103,14 +105,33 @@ class NvtSlab(GmxSimulation):
         self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure)
         return commands
 
-    def extend(self, extend=2000, jobname=None, sh=None) -> [str]:
+    def extend(self, jobname=None, sh=None, info=None, dt=0.002) -> [str]:
         '''
         extend simulation for 2000 ps
         '''
-        self.gmx.extend_tpr('nvt.tpr', extend, silent=True)
-
         nprocs = self.jobmanager.nprocs
         commands = []
+
+        if info is None:
+            continue_n = 2000 / dt
+        elif len(info.get('continue_n')) == 1:
+            continue_n = info.get('continue_n')[0]
+        else:
+            raise Exception('NvtSlab.extend(), info.get(\'continue_n\') must be 1 dimensional')
+        commands = self.extend_single(jobname=jobname, sh=sh, name=info.get('name')[0], continue_n=continue_n, dt=dt)
+        return commands
+
+    def extend_single(self, jobname=None, sh=None, name=None, continue_n=None, dt=0.002):
+        nprocs = self.jobmanager.nprocs
+        commands = []
+
+        if continue_n is None:
+            raise Exception('NvtSlab.extend_single(): continue_n cannot be None\n')
+        if name != 'nvt-slab':
+            raise Exception('NvtSlab.extend_single(): name must be nvt-slab\n')
+
+        extend = continue_n * dt
+        self.gmx.extend_tpr('nvt.tpr', extend, silent=True)
         # Extending NVT production
         cmd = self.gmx.mdrun(name='nvt', nprocs=nprocs, extend=True, get_cmd=True)
         commands.append(cmd)
@@ -123,7 +144,13 @@ class NvtSlab(GmxSimulation):
         from ...panedr import edr_to_df
         from ...analyzer.series import is_converged
         from ...analyzer.structure import check_vle_density
-
+        info_dict = {
+            'failed': [],
+            'continue': [],
+            'continue_n': [],
+            'reason': [],
+            'name': ['nvt-slab']
+        }
         df = edr_to_df('nvt.edr')
         potential_series = df.Potential
         length = potential_series.index[-1]
@@ -131,10 +158,9 @@ class NvtSlab(GmxSimulation):
         ### Check structure freezing using Diffusion of COM of molecules. Only use last 400 ps of data
         diffusion, _ = self.gmx.diffusion('nvt.xtc', 'nvt.tpr', mol=True, begin=length - 400)
         if diffusion < 1E-8:  # cm^2/s
-            return {
-                'failed': True,
-                'reason': 'freeze'
-            }
+            info_dict['failed'].append(True)
+            info_dict['reason'].append('freeze')
+            return info_dict
 
         # use potential to do a initial determination
         # use at least 4/5 of the data
@@ -192,7 +218,7 @@ class NvtSlab(GmxSimulation):
                 print('Time: ', begin, end)
 
             self.gmx.density('nvt.xtc', 'nvt.tpr', xvg=xvg, begin=begin, end=end, silent=True)
-            df = pd.read_table(xvg, skiprows=24, names=['Density'], index_col=0, sep='\s+')
+            df = pd.read_csv(xvg, skiprows=24, names=['Density'], index_col=0, sep='\s+')
             density_series = df.Density
             if not debug:
                 os.remove(xvg)
@@ -306,19 +332,26 @@ class NvtSlab(GmxSimulation):
         # Failed if more than 1/4 pieces do not have interface
         # Failed if pieces at last 1/5 time span have no interface
         if len(dliq_series) < n_pieces * 0.75 or dliq_series.index[-1] < length * 0.8:
-            return {
-                'failed': True,
-                'reason': 'no_interface'
-            }
+            info_dict['failed'].append(True)
+            info_dict['reason'].append('no_interface')
+            return info_dict
 
         _, when_liq = is_converged(dliq_series, frac_min=0)
         _, when_gas = is_converged(dgas_series, frac_min=0)
         # Convergence should be at least 4 ns
         if when_liq > length - 4000:
-            return None
+            info_dict['failed'].append(False)
+            info_dict['continue'].append(True)
+            info_dict['continue_n'].append(1e6)
+            info_dict['reason'].append('not converged')
+            return info_dict
         if when_gas > length - 4000:
             if dgas_series.loc[when_gas:].mean() > 5:
-                return None
+                info_dict['failed'].append(False)
+                info_dict['continue'].append(True)
+                info_dict['continue_n'].append(1e6)
+                info_dict['reason'].append('not converged')
+                return info_dict
             else:
                 # Even if not converge. The density is so small < 5 kg/m^3. Considered as converged.
                 when_gas = length - 4000
@@ -335,17 +368,23 @@ class NvtSlab(GmxSimulation):
             self.gmx.get_properties_stderr('nvt.edr',
                                            ['Temperature', 'Pressure', 'Pres-ZZ', '#Surf*SurfTen', 'Potential'],
                                            begin=when)
-        return {
-            'length'     : length,
-            'converge'   : when,
+        info_dict['failed'].append(False)
+        info_dict['continue'].append(False)
+        info_dict['continue_n'].append(0)
+        info_dict['reason'].append('converge')
+        ad_dict = {
+            'length': length,
+            'converge': when,
             'temperature': temperature_and_stderr,  # K
-            'pressure'   : pressure_and_stderr,  # bar
-            'pzz'        : pzz_and_stderr,  # bar
-            'st'         : [i / 20 for i in st_and_stderr],  # mN/m
-            'potential'  : potential_and_stderr,  # kJ/mol
-            'dliq'       : list(block_average(dliq_series.loc[when:] / 1000)),  # g/mL
-            'dgas'       : list(block_average(dgas_series.loc[when:] / 1000)),  # g/mL
+            'pressure': pressure_and_stderr,  # bar
+            'pzz': pzz_and_stderr,  # bar
+            'st': [i / 20 for i in st_and_stderr],  # mN/m
+            'potential': potential_and_stderr,  # kJ/mol
+            'dliq': list(block_average(dliq_series.loc[when:] / 1000)),  # g/mL
+            'dgas': list(block_average(dgas_series.loc[when:] / 1000)),  # g/mL
         }
+        info_dict.update(ad_dict)
+        return info_dict
 
     def clean(self):
         for f in os.listdir(os.getcwd()):
@@ -389,13 +428,13 @@ class NvtSlab(GmxSimulation):
         coeff_st, score_st = fit_vle_st(T_list, st___list, Tc)  # Ast, n
 
         post_result = {
-            'dliq'      : list(map(list, zip(T_list, dliq_stderr_list))),
-            'dgas'      : list(map(list, zip(T_list, dgas_stderr_list))),
-            'st'        : list(map(list, zip(T_list, st___stderr_list))),
-            'pzz'       : list(map(list, zip(T_list, pzz__stderr_list))),
+            'dliq': list(map(list, zip(T_list, dliq_stderr_list))),  # [t, [dliq, stderr]]
+            'dgas': list(map(list, zip(T_list, dgas_stderr_list))),  # [t, [dgas, stderr]]
+            'st': list(map(list, zip(T_list, st___stderr_list))),  # [t, [st, stderr]] unit: mN/m
+            'pzz': list(map(list, zip(T_list, pzz__stderr_list))),  # [t, [pzz, pzz_stderr]] unit: bar
             'dminus-fit': [list(map(round3, coeff_dminus)), round3(score_dminus)],
-            'dplus-fit' : [list(map(round3, coeff_dplus)), round3(score_dplus)],
-            'st-fit'    : [list(map(round3, coeff_st)), round3(score_st)]
+            'dplus-fit': [list(map(round3, coeff_dplus)), round3(score_dplus)],
+            'st-fit': [list(map(round3, coeff_st)), round3(score_st)]
         }
 
         return post_result, 'Tc %.1f Dc %.3f' % (Tc, Dc)
@@ -411,8 +450,8 @@ class NvtSlab(GmxSimulation):
 
         if T > Tc:
             return {
-                'tc'   : Tc,  # K
-                'dc'   : Dc,  # g/mL
+                'tc': Tc,  # K
+                'dc': Dc,  # g/mL
                 'error': 'T larger than Tc',
             }
 
@@ -425,9 +464,9 @@ class NvtSlab(GmxSimulation):
         st = vle_st(T, _Ast, _n, Tc)
 
         return {
-            'tc'  : Tc,  # K
-            'dc'  : Dc,  # g/mL
+            'tc': Tc,  # K
+            'dc': Dc,  # g/mL
             'dliq': dliq,  # g/mL
             'dgas': dgas,  # g/mL
-            'st'  : st,  # mN/m
+            'st': st,  # mN/m
         }

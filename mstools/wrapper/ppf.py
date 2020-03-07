@@ -166,6 +166,7 @@ def get_atom_hybridization(key):
     n_35+da -> n_2
     n_25-ta -> n_3
     cl0- -> cl1
+    s_4o -> s_4
     '''
     symbol = key[:2]
     degree = int(key[2])
@@ -176,7 +177,7 @@ def get_atom_hybridization(key):
     return symbol + str(degree)
 
 
-class PPF():
+class PPF:
     def __init__(self, ppf_file=None, string=None):
         lines = []
         if ppf_file is not None:
@@ -354,16 +355,18 @@ class PPF():
             os.remove('set_charge.dfo')
 
 
-def delta_ppf(ppf_file, ppf_out, T, drde_dict: Dict = None):
+def delta_ppf(ppf_file, ppf_out, T, T_basic=298, drde_dict: Dict = None):
     if drde_dict is None:
         drde_dict = {
             'h_1_dl': 0.014,
 
             'c_4_dl': 0.014,
             'c_3_dl': 0.005,
+            # 'c_2_dl': 0.005,
 
             'n_3_dl': 0.014,
             'n_2_dl': 0.005,
+            # 'n_1_dl': 0.005,
 
             'o_2_dl': 0.014,
             'o_1_dl': 0.005,
@@ -372,12 +375,19 @@ def delta_ppf(ppf_file, ppf_out, T, drde_dict: Dict = None):
             'cl1_dl': 0.014,
             'br1_dl': 0.014,
             'i_1_dl': 0.014,
+
+            's_2_dl': 0.014, # [S-]C#N
+            's_4_dl': 0.014,
+            'cl4_dl': 0.014,
+            'b_5_dl': 0.014,
+            'p_7_dl': 0.014,
+            'p_3_dl': 0.014,
         }
     paras_delta = {}
     for k, v in drde_dict.items():
         ### drde_dict can contain temperature dependent paras _dl, _dr, _de; and normal LJ parameters also _r0, _e0
         if k.endswith('dr') or k.endswith('de') or k.endswith('dl'):
-            paras_delta[k] = v * (T - 298) / 100
+            paras_delta[k] = v * (T - T_basic) / 100
         else:
             paras_delta[k] = v
     ppf = PPF(ppf_file)

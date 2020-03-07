@@ -110,7 +110,7 @@ class GMX:
 
     def prepare_mdp_from_template(self, template, mdp_out='grompp.mdp', T=298, P=1, nsteps=10000, dt=0.001, TANNEAL=800,
                                   nstenergy=100, nstxout=0, nstvout=0, nstxtcout=10000, xtcgrps='System',
-                                  restart=False, tcoupl='langevin', pcoupl='parrinello-rahman',
+                                  restart=False, tcoupl='langevin', pcoupl='parrinello-rahman', gen_seed=-1,
                                   constraints='h-bonds', ppm=0, dielectric=None):
         template = os.path.join(GMX.TEMPLATE_DIR, template)
         if not os.path.exists(template):
@@ -159,7 +159,7 @@ class GMX:
             .replace('%dt%', str(dt)).replace('%nstenergy%', str(nstenergy)) \
             .replace('%nstxout%', str(nstxout)).replace('%nstvout%', str(nstvout)) \
             .replace('%nstxtcout%', str(nstxtcout)).replace('%xtcgrps%', str(xtcgrps)) \
-            .replace('%genvel%', genvel).replace('%continuation%', continuation) \
+            .replace('%genvel%', genvel).replace('%seed%', str(gen_seed)).replace('%continuation%', continuation) \
             .replace('%integrator%', integrator).replace('%tcoupl%', tcoupl).replace('%tau-t%', tau_t) \
             .replace('%pcoupl%', pcoupl).replace('%tau-p%', tau_p) \
             .replace('%constraints%', constraints).replace('%TANNEAL%', str(TANNEAL)).replace('%ppm%', str(ppm)) \
@@ -168,15 +168,19 @@ class GMX:
         with open(mdp_out, 'w') as f_mdp:
             f_mdp.write(contents)
 
-    def energy(self, edr, properties: [str], begin=0, end=None, fluct_props=False, get_cmd=False):
+    def energy(self, edr, properties: [str], begin=0, end=None, skip=None, fluct_props=False, get_cmd=False, out=None):
         cmd = '%s -quiet -nobackup energy -f %s -b %s' % (self.GMX_BIN, edr, str(begin))
         if end is not None:
             cmd += ' -e %s' % (str(end))
+        if skip is not None:
+            cmd += ' -skip %s' % (str(skip))
+        if out is not None:
+            cmd += ' -o %s' % (str(out))
         if fluct_props:
             cmd += ' -fluct_props'
         if get_cmd:
             property_str = '\\n'.join(properties)
-            cmd = 'echo "%s" | %s' % (property_str, cmd)
+            cmd = 'echo -e "%s" | %s' % (property_str, cmd)
             return cmd
         else:
             sp = Popen(cmd.split(), stdout=PIPE, stdin=PIPE, stderr=PIPE)
@@ -211,9 +215,14 @@ class GMX:
         results = []
         for prop in properties:
             for line in lines:
-                if line.lower().startswith(prop.lower()):
-                    results.append([float(line.split()[1]), float(line.split()[2])])
-                    break
+                if prop in ['Kinetic-En.', 'Total-Energy']:
+                    if line.lower().startswith(prop.lower().replace('-',' ')):
+                        results.append([float(line.split()[2]), float(line.split()[3])])
+                        break
+                else:
+                    if line.lower().startswith(prop.lower()):
+                        results.append([float(line.split()[1]), float(line.split()[2])])
+                        break
             else:
                 raise GmxError('Invalid property')
         return results
@@ -541,7 +550,21 @@ class GMX:
         sp = Popen(cmd.split(), stdout=stdout, stderr=stderr)
         sp.communicate()
 
-    def generate_gpu_multidir_cmds(self,dirs: [str], commands: [str], n_parallel, n_gpu=0, n_omp=None, n_procs=None) -> [[str]]:
+    def trjconv(self, tpr, input_trj, output_trj, pbc_nojump=False, skip=1, end=None, silent=False, select='System', get_cmd=False):
+        cmd = '%s -quiet -nobackup trjconv -s %s -f %s -o %s -skip %i' % (self.GMX_BIN, tpr, input_trj, output_trj, skip)
+        if end is not None:
+            cmd += ' -e %i' % (end)
+        if pbc_nojump:
+            cmd += ' -pbc nojump'
+        if get_cmd:
+            return 'echo %s | ' % (select) + cmd
+        else:
+            (stdout, stderr) = (PIPE, PIPE) if silent else (None, None)
+            sp = Popen(cmd.split(), stdin=PIPE, stdout=stdout, stderr=stderr)
+            sp.communicate(input=select.encode())
+    
+    @staticmethod
+    def generate_gpu_multidir_cmds(dirs: [str], commands: [str], n_parallel, n_gpu=0, n_omp=None, n_procs=None) -> [[str]]:
         '''
         Set n_omp in most case. If n_procs is set, n_omp has no effect.
         :param dirs:
@@ -593,7 +616,7 @@ class GMX:
                     cmd += ' -ntomp %i' % n_thread
 
             else:
-                cmd = 'for i in %s; do cd $i; %s; done' % (' '.join(dirs), cmd)  # do it in every directory
+                cmd = 'for i in %s; \ndo\n\tcd $i;\n\t%s &\ndone\nwait\n' % (' '.join(dirs), cmd)  # do it in every directory
             return cmd
 
         commands_list: [[str]] = []
@@ -698,3 +721,52 @@ class GMX:
 
         for xvg in xvg_files:
             shutil.copy(os.path.join(GMX.TEMPLATE_DIR, 'table6-9.xvg'), xvg)
+
+    def get_box_from_gro(self, gro):
+        f = open(gro, 'r')
+        box = f.readlines()[-1].split()
+        return [float(box[0]), float(box[1]), float(box[2])]
+
+    def get_volume_from_gro(self, gro):
+        box = self.get_box_from_gro(gro)
+        return box[0] * box[1] * box[2]
+
+    def get_temperature_from_mdp(self, mdp):
+        for line in open(mdp, 'r').readlines():
+            if line.startswith('ref-t'):
+                return float(line.split('=')[1])
+        return None
+
+    def current(self, trr, tpr, begin=0, end=None, skip=None, out=None, caf=False, select='System'):
+        cmd = '%s -quiet -nobackup current -f %s -s %s -b %s' % (self.GMX_BIN, trr, tpr, str(begin))
+        if end is not None:
+            cmd += ' -e %s' % (str(end))
+        if skip is not None:
+            cmd += ' -skip %s' % (str(skip))
+        if out is not None:
+            cmd += ' -o %s' % (str(out))
+        if caf:
+            cmd += ' -caf'
+        sp = Popen(cmd.split(), stdout=PIPE, stdin=PIPE, stderr=PIPE)
+        out, err = sp.communicate(input=select.encode())
+        out_str = ''
+        for line in str(out).split('\\n'):
+            if line not in ['', '"', '\'']:
+                out_str += '%s\n' % (line)
+        err_str = ''
+        for line in str(err).split('\\n'):
+            if line not in ['', '"', '\'']:
+                err_str += '%s\n' % (line)
+
+        return out_str, err_str
+
+    def read_gmx_xvg(self, file=None):
+        import pandas as pd
+        if file is None:
+            return None
+        if file.endswith('caf.xvg'):
+            info = pd.read_csv(file, sep='\s+', header=17)
+            info.columns = ['time', 'acf', 'average', '#', '#']
+            info = info.drop(['#'], axis=1)
+            return info
+        return None
