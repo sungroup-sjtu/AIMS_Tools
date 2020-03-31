@@ -563,8 +563,7 @@ class GMX:
             sp = Popen(cmd.split(), stdin=PIPE, stdout=stdout, stderr=stderr)
             sp.communicate(input=select.encode())
     
-    @staticmethod
-    def generate_gpu_multidir_cmds(dirs: [str], commands: [str], n_parallel, n_gpu=0, n_omp=None, n_procs=None) -> [[str]]:
+    def generate_gpu_multidir_cmds(self, dirs: [str], commands: [str], n_parallel, n_gpu=0, n_omp=None, n_procs=None) -> [[str]]:
         '''
         Set n_omp in most case. If n_procs is set, n_omp has no effect.
         :param dirs:
@@ -576,6 +575,7 @@ class GMX:
         :return:
         '''
         import math, re
+
         def replace_gpu_multidir_cmd(dirs: [str], cmd: str) -> str:
             n_multi = len(dirs)
             if cmd.startswith('export '):
