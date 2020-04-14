@@ -20,6 +20,13 @@ def get_para_298(T=298, eps=None, sigma=None, lamb=None):
     return sigma / 2 ** (1 / 6), eps * 16 / 27
 
 
+def add_atom_index(mol):
+    atoms = mol.GetAtoms()
+    for atom in atoms:
+        atom.SetProp('molAtomMapNumber', str(atom.GetIdx()))
+    return mol
+
+
 # get basic information of molecules
 def get_canonical_smiles(smiles):
     py_mol = pybel.readstring("smi", smiles)

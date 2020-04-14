@@ -141,7 +141,7 @@ class NvtSlab(GmxSimulation):
 
     def analyze(self, debug=False, **kwargs):
         import pandas as pd
-        from ...panedr import edr_to_df
+        from panedr.panedr import edr_to_df
         from ...analyzer.series import is_converged
         from ...analyzer.structure import check_vle_density
         info_dict = {

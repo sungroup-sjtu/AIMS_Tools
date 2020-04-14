@@ -5,7 +5,7 @@ from subprocess import Popen, PIPE
 from .gmx import GmxSimulation
 from ...analyzer import is_converged, block_average
 from ...wrapper.ppf import delta_ppf
-from ...panedr import edr_to_df
+from panedr.panedr import edr_to_df
 
 
 class Npt(GmxSimulation):

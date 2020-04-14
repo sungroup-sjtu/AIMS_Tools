@@ -4,6 +4,7 @@ import math
 from collections import OrderedDict
 
 from .gmx import GmxSimulation
+from panedr.panedr import edr_to_df
 from ...analyzer import is_converged, average_of_blocks
 from ..trajectory import Trajectory
 from ...utils import get_last_line
@@ -242,7 +243,6 @@ class NptPPM(GmxSimulation):
 
     def analyze(self, dirs=None, check_converge=True, sim_time_cutoff=2.0e4, **kwargs): # cutoff 2.0e4 ps
         import numpy as np
-        from ...panedr import edr_to_df
         from ...analyzer.fitting import polyfit
 
         a_list = []

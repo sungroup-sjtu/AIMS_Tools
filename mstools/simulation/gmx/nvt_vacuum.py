@@ -74,7 +74,7 @@ class NvtVacuum(GmxSimulation):
     def analyze(self, dirs=None):
         if dirs is None:
             dirs = ['.']
-        from ...panedr import edr_to_df
+        from panedr.panedr import edr_to_df
         import pandas as pd
         import numpy as np
 

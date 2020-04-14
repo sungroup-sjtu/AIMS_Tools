@@ -2,7 +2,7 @@ import os, shutil
 from .gmx import GmxSimulation
 from ...wrapper.gmx import *
 from ...analyzer.acf import get_std_out
-from ...panedr import edr_to_df
+from panedr.panedr import edr_to_df
 
 
 class Nvt(GmxSimulation):
