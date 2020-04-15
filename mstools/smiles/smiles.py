@@ -3,6 +3,8 @@
 import pybel
 from rdkit.Chem import AllChem as Chem
 from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
+import os
+CWD = os.path.dirname(os.path.abspath(__file__))
 from .fingerprint import *
 
 
@@ -89,6 +91,16 @@ def get_stereo_isomer(smiles, canonical=False): # There is a bug for canonical=T
             smi = get_canonical_smiles(smi)
         smiles_list.append(smi)
     return smiles_list
+
+
+def has_stereo_isomer_from_inchi(inchi):
+    from subprocess import Popen, PIPE
+    cmd = 'python3 %s/../bin/IsExplicitInchi.py -i %s' % (CWD, inchi)
+    warning = str(Popen(cmd.split(), stdout=None, stderr=PIPE).communicate()[1])
+    if 'Omitted undefined stereo' in warning:
+        return True
+    else:
+        return False
 
 
 def remove_chirality(smiles):
