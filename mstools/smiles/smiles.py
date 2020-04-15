@@ -31,8 +31,8 @@ def add_atom_index(mol):
 
 # get basic information of molecules
 def get_canonical_smiles(smiles):
-    py_mol = pybel.readstring("smi", smiles)
-    return py_mol.write('can', opt={'n': None}).strip()
+    rdk_mol = Chem.MolFromSmiles(smiles)
+    return Chem.MolToSmiles(rdk_mol)
 
 
 def get_rdkit_smiles(smiles):
