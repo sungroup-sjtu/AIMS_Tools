@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
-# # coding=utf-8
-import pybel
 from rdkit.Chem import AllChem as Chem
-from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
+from rdkit.Chem.EnumerateStereoisomers import (
+    EnumerateStereoisomers,
+    StereoEnumerationOptions
+)
+import pybel
 import os
-CWD = os.path.dirname(os.path.abspath(__file__))
-from .fingerprint import *
+from subprocess import Popen, PIPE
 
-
+'''
 def get_para(T=298, eps=None, sigma=None, lamb=None):
     f = 1 + lamb * 0.01 * (T - 298)
     eps = eps * f ** 2 * 4.184
@@ -27,12 +27,51 @@ def add_atom_index(mol):
     for atom in atoms:
         atom.SetProp('molAtomMapNumber', str(atom.GetIdx()))
     return mol
+'''
 
 
 # get basic information of molecules
-def get_canonical_smiles(smiles):
+def smiles2inchi(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
+    return mol2inchi(rdk_mol)
+
+
+def inchi2smiles(inchi):
+    rdk_mol = Chem.MolFromInchi(inchi)
+    return mol2smiles(rdk_mol)
+
+
+def mol2inchi(rdk_mol):
+    return Chem.MolToInchi(rdk_mol)
+
+
+def mol2smiles(rdk_mol):
     return Chem.MolToSmiles(rdk_mol)
+
+
+def get_charge(inchi=None, smiles=None):
+    if inchi is not None:
+        rdk_mol = Chem.MolFromInchi(inchi)
+        py_mol = pybel.readstring("inchi", inchi)
+    elif smiles is not None:
+        rdk_mol = Chem.MolFromSmiles(smiles)
+        py_mol = pybel.readstring("smi", smiles)
+    else:
+        raise Exception('inchi or smiles is needed as input')
+    if Chem.GetFormalCharge(rdk_mol) == py_mol.charge:
+        return py_mol.charge
+    else:
+        raise Exception('The charge from rdkit and pybel is different')
+
+
+def get_nheavy(inchi):
+    rdk_mol = Chem.MolFromInchi(inchi)
+    return rdk_mol.GetNumAtoms()
+
+
+def get_pybel_smiles(smiles):
+    py_mol = pybel.readstring("smi", smiles)
+    return py_mol.write('can', opt={'n': None}).strip()
 
 
 def get_rdkit_smiles(smiles):
@@ -40,10 +79,33 @@ def get_rdkit_smiles(smiles):
     return Chem.MolToSmiles(rdk_mol)
 
 
+def get_stereo_isomer(smiles=None, inchi=None):
+    if inchi == smiles:
+        raise Exception('Lack parameter: smiles or inchi')
+    smiles = smiles if smiles is not None else inchi2smiles(inchi)
+    rdk_mol = Chem.MolFromSmiles(smiles)
+    isomers = tuple(EnumerateStereoisomers(rdk_mol))
+    return list(map(Chem.MolToInchi, isomers))
+
+
+def is_accurate_inchi(inchi):
+    CWD = os.path.dirname(os.path.abspath(__file__))
+    exe = os.path.join(CWD, '..', 'bin', 'IsPerfectInchi.py')
+    cmd = 'python3 %s -i %s' % (exe, inchi)
+    warning = str(Popen(cmd.split(), stdout=None, stderr=PIPE).communicate()[1])
+    #if 'Omitted undefined stereo' in warning:
+        #return False
+    if warning is None:
+        return True
+    else:
+        return False
+
+
+'''
 def get_atom_numbers(smiles):
-    mol = pybel.readstring("smi", smiles)
-    mol.addh()
-    return len(mol.atoms)
+    py_mol = pybel.readstring("smi", smiles)
+    py_mol.addh()
+    return len(py_mol.atoms)
 
 
 def get_heavy_atom_numbers(smiles):
@@ -64,11 +126,6 @@ def get_AtomNum_list(smiles):
     return atom_type_list
 
 
-def get_charge(smiles):
-    mol = pybel.readstring("smi", smiles)
-    return mol.charge
-
-
 def get_ring_number(smiles):
     rdk_mol = Chem.MolFromSmiles(smiles)
     return rdk_mol.GetRingInfo().NumRings()
@@ -82,11 +139,13 @@ def has_stereo_isomer(smiles):
         return True
 
 
-def get_stereo_isomer(smiles, canonical=False): # There is a bug for canonical=True, rarely happen.
+def get_stereo_isomer(smiles, canonical=False):
+    # There is a bug for canonical=True, rarely happen.
     rdk_mol = Chem.MolFromSmiles(smiles)
     isomers = tuple(EnumerateStereoisomers(rdk_mol))
     smiles_list = []
-    for smi in sorted(Chem.MolToSmiles(x, isomericSmiles=True) for x in isomers):
+    for smi in sorted(
+            Chem.MolToSmiles(x, isomericSmiles=True) for x in isomers):
         if canonical:
             smi = get_canonical_smiles(smi)
         smiles_list.append(smi)
@@ -94,7 +153,7 @@ def get_stereo_isomer(smiles, canonical=False): # There is a bug for canonical=T
 
 
 def has_stereo_isomer_from_inchi(inchi):
-    from subprocess import Popen, PIPE
+    CWD = os.path.dirname(os.path.abspath(__file__))
     cmd = 'python3 %s/../bin/IsExplicitInchi.py -i %s' % (CWD, inchi)
     warning = str(Popen(cmd.split(), stdout=None, stderr=PIPE).communicate()[1])
     if 'Omitted undefined stereo' in warning:
@@ -164,9 +223,11 @@ def similarity_comparison(smiles1, smiles2, useChirality=False):
     from rdkit.Chem import AllChem as Chem
     from rdkit import DataStructs
     rdk_mol1 = Chem.MolFromSmiles(smiles1)
-    fp1 = Chem.GetMorganFingerprintAsBitVect(rdk_mol1, 2, useChirality=useChirality)
+    fp1 = Chem.GetMorganFingerprintAsBitVect(rdk_mol1, 2,
+                                             useChirality=useChirality)
     rdk_mol2 = Chem.MolFromSmiles(smiles2)
-    fp2 = Chem.GetMorganFingerprintAsBitVect(rdk_mol2, 2, useChirality=useChirality)
+    fp2 = Chem.GetMorganFingerprintAsBitVect(rdk_mol2, 2,
+                                             useChirality=useChirality)
     # print(smiles1, smiles2)
     return DataStructs.DiceSimilarity(fp1, fp2)
 
@@ -179,7 +240,8 @@ def rdk_similarity_comparison(smiles1, smiles2, maxPath=7):
     rdk_mol2 = Chem.MolFromSmiles(smiles2)
     fp2 = Chem.RDKFingerprint(rdk_mol2, maxPath=maxPath)
     # print(smiles1, smiles2)
-    return DataStructs.FingerprintSimilarity(fp1, fp2, metric=DataStructs.DiceSimilarity)
+    return DataStructs.FingerprintSimilarity(fp1, fp2,
+                                             metric=DataStructs.DiceSimilarity)
 
 
 def get_similarity_score(smiles, smiles_list, cutoff=None):
@@ -200,7 +262,8 @@ def is_similar(smiles, smiles_list, cutoff):
     return False
 
 
-def similarity_score(smiles1, smiles2, type='morgan'):  # a switch function of similarity_comparison
+def similarity_score(smiles1, smiles2,
+                     type='morgan'):  # a switch function of similarity_comparison
     if type == 'rdk':
         a = rdk_similarity_comparison(smiles1, smiles2)
     else:
@@ -210,3 +273,4 @@ def similarity_score(smiles1, smiles2, type='morgan'):  # a switch function of s
         return 0.
     else:
         return (a - cut) / (1 - cut)
+'''
