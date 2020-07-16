@@ -95,7 +95,7 @@ def is_accurate_inchi(inchi):
     warning = str(Popen(cmd.split(), stdout=None, stderr=PIPE).communicate()[1])
     #if 'Omitted undefined stereo' in warning:
         #return False
-    if warning is None:
+    if str(warning) == "b\'\'":
         return True
     else:
         return False
