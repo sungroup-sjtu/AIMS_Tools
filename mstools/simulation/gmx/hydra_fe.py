@@ -107,10 +107,10 @@ class HydraFe(GmxSimulation):
 
         # NPT production with Langevin thermostat and Parrinello-Rahman barostat
         self.gmx.prepare_mdp_from_FEtemplate('t_npt_fe.mdp', FEmdp_out='grompp-npt-prod.mdp', T=T, P=P, dt=0.002, nsteps=10000000, tcoupl=tcoupl, pcoupl='parrinello-rahman', restart=True, step='prod')
-        cmd = self.gmx.grompp(mdp='grompp-npt-prod.mdp', gro='npt-eq.gro', top=top, tpr_out='npt-prod.tpr',
+        cmd = self.gmx.grompp(mdp='grompp-npt-prod.mdp', gro='npt-eq.gro', top=top, tpr_out='dhdl.%lambda%.tpr',
                               get_cmd=True)
         commands.append(cmd)
-        cmd = self.gmx.mdrun(name='npt-prod', nprocs=nprocs, get_cmd=True)
+        cmd = self.gmx.mdrun(name='dhdl.%lambda%', nprocs=nprocs, get_cmd=True)
         commands.append(cmd)
         self.jobmanager.generate_sh(os.getcwd(), commands, name=jobname or self.procedure)
         return commands
@@ -139,7 +139,7 @@ class HydraFe(GmxSimulation):
         names = []
         temp_paths = []
         for i in range(0, lambdas):
-            name = 'lambda-%i' % i
+            name = 'lambda-%02i' %i
             os.mkdir(name)
             names.append(name)
             for nm in names:
@@ -154,7 +154,7 @@ class HydraFe(GmxSimulation):
             for out, temp in zip(FE_out, FE_temp):
                 with open(temp, 'r') as f_in, open(out, 'w') as f_out:
                     contents = f_in.read()
-                    contents = contents.replace('%lambda%', str(point))
+                    contents = contents.replace('%lambda%', str(point).zfill(2))
                     temp_paths.append(os.path.join(lambda_dest, temp))
                     f_out.write(contents)
 
@@ -182,7 +182,42 @@ class HydraFe(GmxSimulation):
                     else:
                         job_out.write(line)
 
-            # os.system('sbatch _job_slurm.sh')
+            os.system('sbatch _job_slurm.sh')
+        return dest
+
+        
+
+
+
+
+
+    def analysis(self, lambdas=None, check_converge=True):
+        root = os.getcwd()
+        print('root', root)
+        os.mkdir('Analysis')
+        dirs = os.listdir(root)
+        for dir in dirs:
+            if dir=='Analysis':
+                analysis = os.path.join(root, 'Analysis')
+            else:
+                continue
+
+        for i in range(0, lambdas):
+            for dir in dirs:
+                if dir == 'lambda-%02i' %i:
+                    os.chdir(dir)
+                    shutil.copy('dhdl.%02i.xvg' % i, analysis)
+                    print('Retrieving data from', dir)
+                    os.chdir(root)
+                else:
+                    continue
+        os.chdir(analysis)
+
+
+
+
+
+
 
     #     # Rerun enthalpy of vaporization
     #     commands.append('export GMX_MAXCONSTRWARN=-1')
